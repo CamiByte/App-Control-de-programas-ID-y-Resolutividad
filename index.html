@@ -55,7 +55,8 @@
                     BrainCircuit: <><path d="M12 4.5a2.5 2.5 0 0 0-4.96-.46 2.5 2.5 0 0 0-1.98 3 2.5 2.5 0 0 0-1.32 4.24 3 3 0 0 0 .34 5.58 2.5 2.5 0 0 0 2.96 3.08 2.5 2.5 0 0 0 4.96-.44" /><path d="M16 8V5c0-1.1.9-2 2-2" /><circle cx="12" cy="13" r="3" /><path d="M9 13h1" /><path d="M14 13h1" /><path d="M12 10v1" /><path d="M12 15v1" /></>,
                     RefreshCw: <><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 21v-5h-5" /></>,
                     X: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
-                    CheckCircle: <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></>
+                    CheckCircle: <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></>,
+                    Copy: <><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>
                 };
 
                 return (
@@ -139,13 +140,45 @@
                 
                 // Estados del Sistema
                 const [dbStatus, setDbStatus] = useState('checking'); 
-                const [dbMessage, setDbMessage] = useState('');
+                const [dbErrorType, setDbErrorType] = useState(null);
                 const [syncStatus, setSyncStatus] = useState('synced'); 
+                const [rulesCopied, setRulesCopied] = useState(false);
 
                 const [aiReport, setAiReport] = useState("");
                 const [isAiLoading, setIsAiLoading] = useState(false);
                 const [aiError, setAiError] = useState("");
                 const [showAiModal, setShowAiModal] = useState(false);
+
+                // Función de copiado 100% limpio
+                const handleCopyRules = () => {
+                    const cleanRules = "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}";
+                    
+                    try {
+                        // Intento moderno
+                        if (navigator.clipboard && window.isSecureContext) {
+                            navigator.clipboard.writeText(cleanRules).then(() => {
+                                setRulesCopied(true);
+                                setTimeout(() => setRulesCopied(false), 3000);
+                            });
+                        } else {
+                            // Fallback clásico
+                            const textArea = document.createElement("textarea");
+                            textArea.value = cleanRules;
+                            textArea.style.position = "fixed";
+                            textArea.style.left = "-999999px";
+                            textArea.style.top = "-999999px";
+                            document.body.appendChild(textArea);
+                            textArea.focus();
+                            textArea.select();
+                            document.execCommand("copy");
+                            textArea.remove();
+                            setRulesCopied(true);
+                            setTimeout(() => setRulesCopied(false), 3000);
+                        }
+                    } catch (e) {
+                        console.error("Error al copiar: ", e);
+                    }
+                };
 
                 useEffect(() => {
                     const initAuth = async () => {
@@ -154,7 +187,7 @@
                         } catch (e) { 
                             console.error("Error Auth:", e); 
                             setDbStatus('error');
-                            setDbMessage(`Falta habilitar Autenticación. Ve a Firebase > Authentication > Sign-in method y habilita "Anónimo".`);
+                            setDbErrorType('auth');
                             setIsLoading(false);
                         }
                     };
@@ -182,7 +215,7 @@
                             setActivities(data);
                             setSyncStatus('synced');
                             setDbStatus('connected');
-                            setDbMessage('');
+                            setDbErrorType(null);
                         }
                         setIsLoading(false);
                     }, (err) => {
@@ -190,11 +223,11 @@
                         setDbStatus('error');
                         
                         if (err.message.includes("Cloud Firestore API has not been used") || err.message.includes("is disabled")) {
-                            setDbMessage('PASO 1: AÚN NO HAS CREADO LA BASE DE DATOS. Ve a tu consola de Firebase > "Firestore Database" y haz clic en "Crear base de datos".');
+                            setDbErrorType('not-created');
                         } else if (err.message.includes("permission-denied") || err.message.includes("Missing or insufficient permissions")) {
-                            setDbMessage('PASO 2: BLOQUEO DE PERMISOS. Ve a Firebase > Firestore Database > Pestaña "Reglas" y cambia las reglas a "allow read, write: if true;".');
+                            setDbErrorType('permissions');
                         } else {
-                            setDbMessage(`Error al cargar la base de datos: ${err.message}`);
+                            setDbErrorType('unknown');
                         }
                         setIsLoading(false);
                     });
@@ -343,13 +376,41 @@
                                 <div className="bg-red-500/20 border-2 border-red-500 text-white p-6 rounded-xl shadow-2xl">
                                     <div className="flex items-center gap-4 mb-4">
                                         <Icon name="AlertCircle" size={32} className="text-red-400" />
-                                        <h2 className="text-xl md:text-2xl font-bold text-red-400 uppercase tracking-wider">Error: Base de Datos no conectada</h2>
+                                        <h2 className="text-xl md:text-2xl font-bold text-red-400 uppercase tracking-wider">Error: Base de Datos Bloqueada</h2>
                                     </div>
-                                    <p className="text-lg mb-4 font-medium">{dbMessage}</p>
-                                    <div className="bg-black/50 p-4 rounded-lg text-sm font-mono text-red-200">
-                                        Si estás intentando guardar datos, asegúrate de haber ido a Firebase, habilitar Firestore Database y establecer las reglas en: <br/> 
-                                        <strong>allow read, write: if true;</strong>
-                                    </div>
+                                    
+                                    {dbErrorType === 'not-created' && (
+                                        <p className="text-lg font-medium">PASO 1: AÚN NO HAS CREADO LA BASE DE DATOS. Ve a tu consola de Firebase &gt; "Firestore Database" y haz clic en "Crear base de datos".</p>
+                                    )}
+
+                                    {dbErrorType === 'permissions' && (
+                                        <div>
+                                            <p className="text-base font-medium mb-3">La base de datos se bloqueó porque copiaste espacios ocultos. Usa este botón para copiar el texto 100% limpio y pégalo en Firebase &gt; Reglas:</p>
+                                            <div className="relative bg-[#0F141E] p-5 rounded-lg border border-red-500/30">
+                                                <button 
+                                                    onClick={handleCopyRules} 
+                                                    className={`absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 ${rulesCopied ? 'bg-green-500 text-white' : 'bg-[#00D2D3] text-[#161B26] hover:bg-white'}`}
+                                                >
+                                                    <Icon name={rulesCopied ? "CheckCircle" : "Copy"} size={14} />
+                                                    {rulesCopied ? "¡Copiado Perfecto!" : "Copiar Reglas"}
+                                                </button>
+                                                <pre className="text-green-300 font-mono text-sm overflow-x-auto whitespace-pre">
+{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}`}
+                                                </pre>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {dbErrorType === 'auth' && (
+                                        <p className="text-lg font-medium">Falta habilitar Autenticación. Ve a Firebase &gt; Authentication &gt; Sign-in method y habilita "Anónimo".</p>
+                                    )}
                                 </div>
                             )}
 
