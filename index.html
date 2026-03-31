@@ -43,7 +43,7 @@
 
     <script type="text/babel">
         (() => {
-            const { useState, useMemo, useEffect } = React;
+            const { useState, useMemo, useEffect, useRef } = React;
 
             // --- Iconos en formato SVG ---
             const Icon = ({ name, size = 24, className = "" }) => {
@@ -63,7 +63,8 @@
                     RefreshCw: <><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 21v-5h-5" /></>,
                     X: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
                     CheckCircle: <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></>,
-                    Copy: <><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>
+                    Copy: <><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>,
+                    Save: <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></>
                 };
 
                 return (
@@ -149,25 +150,32 @@
                 const [dbErrorType, setDbErrorType] = useState(null);
                 const [syncStatus, setSyncStatus] = useState('synced'); 
                 const [rulesCopied, setRulesCopied] = useState(false);
+                
+                // Nuevo estado para controlar cambios sin guardar
+                const [hasChanges, setHasChanges] = useState(false);
+                const hasChangesRef = useRef(false);
 
                 const [aiReport, setAiReport] = useState("");
                 const [isAiLoading, setIsAiLoading] = useState(false);
                 const [aiError, setAiError] = useState("");
                 const [showAiModal, setShowAiModal] = useState(false);
 
+                // Mantiene el Ref sincronizado con el state para usarlo dentro de onSnapshot
+                useEffect(() => {
+                    hasChangesRef.current = hasChanges;
+                }, [hasChanges]);
+
                 // Función de copiado 100% limpio
                 const handleCopyRules = () => {
                     const cleanRules = "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}";
                     
                     try {
-                        // Intento moderno
                         if (navigator.clipboard && window.isSecureContext) {
                             navigator.clipboard.writeText(cleanRules).then(() => {
                                 setRulesCopied(true);
                                 setTimeout(() => setRulesCopied(false), 3000);
                             });
                         } else {
-                            // Fallback clásico
                             const textArea = document.createElement("textarea");
                             textArea.value = cleanRules;
                             textArea.style.position = "fixed";
@@ -186,7 +194,7 @@
                     }
                 };
 
-                // Iniciar Autenticación Anónima (Requerida por Firestore)
+                // Iniciar Autenticación Anónima
                 useEffect(() => {
                     const initAuth = async () => {
                         try {
@@ -206,7 +214,7 @@
                     return () => unsubscribe();
                 }, []);
 
-                // Conectar a Firestore cuando el usuario esté autenticado
+                // Conectar a Firestore
                 useEffect(() => {
                     if (!user) return;
                     
@@ -215,14 +223,23 @@
                     const unsubscribe = actsRef.onSnapshot((snapshot) => {
                         if (snapshot.empty) {
                             setSyncStatus('syncing');
-                            // Si está vacío, inicializamos la BD
+                            // Si está vacío, inicializamos la BD usando BATCH (mucho más seguro)
+                            const batch = db.batch();
                             INITIAL_DATA.forEach(act => {
-                                actsRef.doc(act.id.toString()).set(act).catch(e => console.error("Init err:", e));
+                                const docRef = actsRef.doc(act.id.toString());
+                                batch.set(docRef, act);
                             });
+                            batch.commit().catch(e => console.error("Init err:", e));
                         } else {
                             const data = snapshot.docs.map(d => d.data()).sort((a, b) => a.id - b.id);
-                            setActivities(data);
-                            setSyncStatus('synced');
+                            
+                            // ❗ IMPORTANTE: Solo actualizamos la pantalla si NO hay cambios locales sin guardar.
+                            // Esto evita que Firebase te borre lo que estás escribiendo antes de darle a Guardar.
+                            if (!hasChangesRef.current) {
+                                setActivities(data);
+                                setSyncStatus('synced');
+                            }
+                            
                             setDbStatus('connected');
                             setDbErrorType(null);
                         }
@@ -231,7 +248,6 @@
                         console.error("Error Firestore:", err);
                         setDbStatus('error');
                         
-                        // Detectar el error específico de la API no habilitada
                         if (err.message.includes("Cloud Firestore API has not been used") || err.message.includes("is disabled")) {
                             setDbErrorType('not-created');
                         } else if (err.message.includes("permission-denied") || err.message.includes("Missing or insufficient permissions")) {
@@ -283,9 +299,8 @@
                     return { chartTicks: ticks, chartMax: niceMax };
                 }, [monthlyTotals]);
 
-                // Función para editar y guardar datos (MEJORADA PARA ATRAPAR ERRORES AL GUARDAR)
-                const handleEdit = async (id, mIdx, val) => {
-                    // Solo permitir números y strings vacíos
+                // 🛠️ Función de Edición LOCAL (Solo actualiza la pantalla)
+                const handleEdit = (id, mIdx, val) => {
                     if (val !== '' && !/^\d+$/.test(val)) return;
 
                     const updatedActivities = activities.map(act => {
@@ -297,9 +312,13 @@
                         return act;
                     });
                     
-                    // Actualización optimista (se ve el cambio de inmediato en pantalla)
                     setActivities(updatedActivities);
+                    setHasChanges(true);
+                    setSyncStatus('unsaved');
+                };
 
+                // 🚀 Función de GUARDADO EN LA NUBE (Con Botón)
+                const handleSave = async () => {
                     if (!user || dbStatus === 'error') {
                         setSyncStatus('error');
                         return; 
@@ -307,19 +326,24 @@
                     
                     setSyncStatus('syncing');
                     try {
-                        const updated = updatedActivities.find(a => a.id === id);
-                        if (!updated) return;
-
-                        const docRef = db.collection('artifacts').doc(myAppId).collection('public').doc('data').collection('activities').doc(id.toString());
+                        // Guardamos TODOS los datos de una sola vez (BATCH)
+                        const batch = db.batch();
+                        const activitiesRef = db.collection('artifacts').doc(myAppId).collection('public').doc('data').collection('activities');
                         
-                        // Guardar usando await. Si Firebase rechaza la escritura (por permisos), lanzará un error aquí.
-                        await docRef.set(updated);
+                        activities.forEach(act => {
+                            const docRef = activitiesRef.doc(act.id.toString());
+                            batch.set(docRef, act);
+                        });
+                        
+                        await batch.commit();
+                        
+                        setHasChanges(false);
                         setSyncStatus('synced');
                     } catch (error) {
                         console.error("Error crítico guardando en Firebase:", error);
                         setSyncStatus('error');
                         
-                        // Forzar la activación del panel rojo gigante para que el usuario pueda solucionarlo
+                        // Forzar la activación del panel rojo gigante
                         setDbStatus('error');
                         if (error.message && (error.message.includes("permission-denied") || error.message.includes("Missing or insufficient permissions"))) {
                             setDbErrorType('permissions');
@@ -465,7 +489,19 @@ service cloud.firestore {
                                     <div className="p-2 bg-[#00D2D3]/10 rounded-lg border border-[#00D2D3]/20"><Icon name="Activity" className="text-[#00D2D3]" size={24} /></div>
                                     <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Control de programas ID y Resolutividad</h1>
                                 </div>
-                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                                    {/* BOTÓN DE GUARDAR CAMBIOS */}
+                                    {hasChanges && (
+                                        <button 
+                                            onClick={handleSave} 
+                                            disabled={syncStatus === 'syncing'} 
+                                            className="bg-[#00D2D3] text-[#161B26] font-bold px-4 py-2.5 rounded-lg shadow-[0_0_15px_rgba(0,210,211,0.4)] hover:bg-white hover:shadow-[0_0_20px_rgba(255,255,255,0.6)] transition-all active:scale-95 flex items-center gap-2 text-sm uppercase tracking-wider"
+                                        >
+                                            {syncStatus === 'syncing' ? <Icon name="RefreshCw" size={18} className="animate-spin" /> : <Icon name="Save" size={18} />}
+                                            {syncStatus === 'syncing' ? 'Guardando...' : 'Guardar Cambios'}
+                                        </button>
+                                    )}
+                                    
                                     <button onClick={aiReport ? () => setShowAiModal(true) : generateAiAnalysis} disabled={isAiLoading} className="p-2.5 rounded-lg border bg-[#1A202E] border-[#2A3441] text-[#A5B1C2] hover:border-[#00D2D3] hover:text-[#00D2D3] flex items-center shadow-lg transition-all active:scale-95">
                                         {isAiLoading ? <Icon name="RefreshCw" size={18} className="animate-spin" /> : <Icon name="Sparkles" size={18} />}
                                         <span className="ml-2 text-[10px] font-bold uppercase hidden sm:inline">Análisis IA</span>
@@ -551,6 +587,7 @@ service cloud.firestore {
                                     
                                     {/* Indicador Visual de Estado de Guardado */}
                                     <div className="flex items-center gap-2 font-bold bg-[#161B26] px-3 py-1.5 rounded-full border border-[#2A3441]">
+                                        {syncStatus === 'unsaved' && <><Icon name="AlertCircle" size={14} className="text-yellow-400" /><span className="text-yellow-400">Cambios sin guardar</span></>}
                                         {syncStatus === 'syncing' && <><Icon name="RefreshCw" size={14} className="animate-spin text-[#00D2D3]" /><span className="text-[#00D2D3]">Guardando...</span></>}
                                         {syncStatus === 'synced' && <><Icon name="CheckCircle" size={14} className="text-green-400" /><span className="text-green-400">Nube Actualizada</span></>}
                                         {syncStatus === 'error' && <><Icon name="AlertCircle" size={14} className="text-red-400" /><span className="text-red-400">Error de conexión</span></>}
@@ -583,7 +620,7 @@ service cloud.firestore {
                                                                 onChange={(e) => handleEdit(row.id, i, e.target.value)} 
                                                                 placeholder="-" 
                                                                 className="w-full h-10 bg-transparent text-center focus:bg-[#161B26] outline-none text-white placeholder-[#2A3441] transition-colors" 
-                                                                disabled={dbStatus === 'error'} 
+                                                                disabled={dbStatus === 'error' && !hasChanges} 
                                                             />
                                                         </td>
                                                     ))}
