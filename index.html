@@ -283,7 +283,7 @@
                     return { chartTicks: ticks, chartMax: niceMax };
                 }, [monthlyTotals]);
 
-                // Función para editar y guardar datos
+                // Función para editar y guardar datos (MEJORADA PARA ATRAPAR ERRORES AL GUARDAR)
                 const handleEdit = async (id, mIdx, val) => {
                     // Solo permitir números y strings vacíos
                     if (val !== '' && !/^\d+$/.test(val)) return;
@@ -308,12 +308,24 @@
                     setSyncStatus('syncing');
                     try {
                         const updated = updatedActivities.find(a => a.id === id);
+                        if (!updated) return;
+
                         const docRef = db.collection('artifacts').doc(myAppId).collection('public').doc('data').collection('activities').doc(id.toString());
+                        
+                        // Guardar usando await. Si Firebase rechaza la escritura (por permisos), lanzará un error aquí.
                         await docRef.set(updated);
                         setSyncStatus('synced');
                     } catch (error) {
-                        console.error("Error guardando en Firebase:", error);
+                        console.error("Error crítico guardando en Firebase:", error);
                         setSyncStatus('error');
+                        
+                        // Forzar la activación del panel rojo gigante para que el usuario pueda solucionarlo
+                        setDbStatus('error');
+                        if (error.message && (error.message.includes("permission-denied") || error.message.includes("Missing or insufficient permissions"))) {
+                            setDbErrorType('permissions');
+                        } else {
+                            setDbErrorType('unknown');
+                        }
                     }
                 };
 
@@ -415,7 +427,7 @@
 
                                     {dbErrorType === 'permissions' && (
                                         <div>
-                                            <p className="text-base font-medium mb-3">La base de datos bloqueó el acceso. Ve a tu consola de Firebase &gt; Firestore Database &gt; <b className="text-[#00D2D3]">Reglas</b> y pega este código exacto:</p>
+                                            <p className="text-base font-medium mb-3">La base de datos rechazó el acceso (seguramente al intentar guardar). Ve a tu consola de Firebase &gt; Firestore Database &gt; <b className="text-[#00D2D3]">Reglas</b> y pega este código exacto:</p>
                                             <div className="relative bg-[#0F141E] p-5 rounded-lg border border-red-500/30">
                                                 <button 
                                                     onClick={handleCopyRules} 
@@ -436,6 +448,10 @@ service cloud.firestore {
                                                 </pre>
                                             </div>
                                         </div>
+                                    )}
+
+                                    {dbErrorType === 'unknown' && (
+                                        <p className="text-lg font-medium">Ocurrió un error desconocido al intentar conectar o guardar los datos. Revisa la consola de tu navegador (F12) para más detalles.</p>
                                     )}
 
                                     {dbErrorType === 'auth' && (
