@@ -15,7 +15,7 @@
     <!-- Babel para compilar JSX en el navegador -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Firebase SDK (Compat) -->
+    <!-- Firebase SDK (Compat para integrarlo fácilmente en un solo archivo) -->
     <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore-compat.js"></script>
@@ -29,6 +29,13 @@
         @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .animate-spin-slow { animation: spin-slow 3s linear infinite; }
         input:focus { outline: none; }
+        
+        /* Ocultar flechas de los input number */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none; margin: 0;
+        }
+        input[type="number"] { -moz-appearance: textfield; }
     </style>
 </head>
 <body>
@@ -78,9 +85,8 @@
             };
 
             // =========================================================================
-            // CONFIGURACIÓN DE FIREBASE (Datos Oficiales)
+            // CONFIGURACIÓN DE FIREBASE
             // =========================================================================
-            
             const firebaseConfig = {
               apiKey: "AIzaSyBCrZ014WwjBAdQXUV2h-u0-myquCuo0cE",
               authDomain: "cesfam-dalcahue-dashboard.firebaseapp.com",
@@ -180,6 +186,7 @@
                     }
                 };
 
+                // Iniciar Autenticación Anónima (Requerida por Firestore)
                 useEffect(() => {
                     const initAuth = async () => {
                         try {
@@ -199,6 +206,7 @@
                     return () => unsubscribe();
                 }, []);
 
+                // Conectar a Firestore cuando el usuario esté autenticado
                 useEffect(() => {
                     if (!user) return;
                     
@@ -207,6 +215,7 @@
                     const unsubscribe = actsRef.onSnapshot((snapshot) => {
                         if (snapshot.empty) {
                             setSyncStatus('syncing');
+                            // Si está vacío, inicializamos la BD
                             INITIAL_DATA.forEach(act => {
                                 actsRef.doc(act.id.toString()).set(act).catch(e => console.error("Init err:", e));
                             });
@@ -222,6 +231,7 @@
                         console.error("Error Firestore:", err);
                         setDbStatus('error');
                         
+                        // Detectar el error específico de la API no habilitada
                         if (err.message.includes("Cloud Firestore API has not been used") || err.message.includes("is disabled")) {
                             setDbErrorType('not-created');
                         } else if (err.message.includes("permission-denied") || err.message.includes("Missing or insufficient permissions")) {
@@ -234,6 +244,7 @@
                     return () => unsubscribe();
                 }, [user]);
 
+                // Procesamiento de datos y KPIs
                 const processedData = useMemo(() => {
                     return activities.map(act => {
                         const total = act.months.reduce((sum, val) => sum + (Number(val) || 0), 0);
@@ -272,7 +283,9 @@
                     return { chartTicks: ticks, chartMax: niceMax };
                 }, [monthlyTotals]);
 
+                // Función para editar y guardar datos
                 const handleEdit = async (id, mIdx, val) => {
+                    // Solo permitir números y strings vacíos
                     if (val !== '' && !/^\d+$/.test(val)) return;
 
                     const updatedActivities = activities.map(act => {
@@ -283,6 +296,8 @@
                         }
                         return act;
                     });
+                    
+                    // Actualización optimista (se ve el cambio de inmediato en pantalla)
                     setActivities(updatedActivities);
 
                     if (!user || dbStatus === 'error') {
@@ -302,9 +317,10 @@
                     }
                 };
 
+                // Análisis con IA Gemini
                 const generateAiAnalysis = async () => {
                     if (!myGeminiKey) {
-                        setAiError("Falta la API Key de Gemini en el código para activar esta función.");
+                        setAiError("Falta la API Key de Gemini en el código para activar esta función inteligente.");
                         setShowAiModal(true);
                         return;
                     }
@@ -352,6 +368,7 @@
 
                 return (
                     <div className="min-h-screen bg-[#161B26] text-white font-sans p-4 md:p-8 selection:bg-[#00D2D3]/30 custom-scrollbar overflow-y-auto relative">
+                        {/* Modal de Inteligencia Artificial */}
                         {showAiModal && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#161B26]/80 backdrop-blur-sm">
                                 <div className="bg-[#1A202E] border border-[#2A3441] w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
@@ -376,16 +393,29 @@
                                 <div className="bg-red-500/20 border-2 border-red-500 text-white p-6 rounded-xl shadow-2xl">
                                     <div className="flex items-center gap-4 mb-4">
                                         <Icon name="AlertCircle" size={32} className="text-red-400" />
-                                        <h2 className="text-xl md:text-2xl font-bold text-red-400 uppercase tracking-wider">Error: Base de Datos Bloqueada</h2>
+                                        <h2 className="text-xl md:text-2xl font-bold text-red-400 uppercase tracking-wider">Error de Conexión a Base de Datos</h2>
                                     </div>
                                     
                                     {dbErrorType === 'not-created' && (
-                                        <p className="text-lg font-medium">PASO 1: AÚN NO HAS CREADO LA BASE DE DATOS. Ve a tu consola de Firebase &gt; "Firestore Database" y haz clic en "Crear base de datos".</p>
+                                        <div className="space-y-4">
+                                            <p className="text-lg font-medium">PASO 1: AÚN NO HAS ACTIVADO FIRESTORE.</p>
+                                            <p className="text-base text-red-200">El error de la consola indica que Firebase bloqueó la conexión porque la API de Firestore no está habilitada en tu proyecto <b>cesfam-dalcahue-dashboard</b>.</p>
+                                            <a 
+                                                href="https://console.firebase.google.com/project/cesfam-dalcahue-dashboard/firestore" 
+                                                target="_blank" 
+                                                rel="noreferrer" 
+                                                className="inline-flex items-center gap-2 bg-[#00D2D3] text-[#161B26] font-bold px-6 py-3 rounded-lg hover:bg-white transition-colors"
+                                            >
+                                                <Icon name="Target" size={18} />
+                                                Activar Firestore en la Consola
+                                            </a>
+                                            <p className="text-sm italic opacity-80 mt-2">Nota: Si acabas de activarla, espera 2 o 3 minutos a que Google aplique los cambios y recarga esta página.</p>
+                                        </div>
                                     )}
 
                                     {dbErrorType === 'permissions' && (
                                         <div>
-                                            <p className="text-base font-medium mb-3">La base de datos se bloqueó porque copiaste espacios ocultos. Usa este botón para copiar el texto 100% limpio y pégalo en Firebase &gt; Reglas:</p>
+                                            <p className="text-base font-medium mb-3">La base de datos bloqueó el acceso. Ve a tu consola de Firebase &gt; Firestore Database &gt; <b className="text-[#00D2D3]">Reglas</b> y pega este código exacto:</p>
                                             <div className="relative bg-[#0F141E] p-5 rounded-lg border border-red-500/30">
                                                 <button 
                                                     onClick={handleCopyRules} 
@@ -409,7 +439,7 @@ service cloud.firestore {
                                     )}
 
                                     {dbErrorType === 'auth' && (
-                                        <p className="text-lg font-medium">Falta habilitar Autenticación. Ve a Firebase &gt; Authentication &gt; Sign-in method y habilita "Anónimo".</p>
+                                        <p className="text-lg font-medium">Autenticación bloqueada: Ve a tu consola de Firebase &gt; Authentication &gt; Sign-in method y habilita el método <b className="text-[#00D2D3]">Anónimo</b>.</p>
                                     )}
                                 </div>
                             )}
@@ -500,14 +530,14 @@ service cloud.firestore {
                                 <div className="p-4 bg-[#161B26]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#A5B1C2]">
                                     <div className="flex items-center gap-2">
                                         <Icon name={dbStatus === 'connected' ? "Activity" : "AlertCircle"} size={14} className={dbStatus === 'connected' ? "text-[#00D2D3]" : "text-red-400"} />
-                                        {dbStatus === 'connected' ? "Conexión estable con la Base de Datos." : "Desconectado. Los datos no se guardarán."}
+                                        {dbStatus === 'connected' ? "Conexión estable con Firestore." : "Desconectado. Los datos no se guardarán en la nube."}
                                     </div>
                                     
                                     {/* Indicador Visual de Estado de Guardado */}
                                     <div className="flex items-center gap-2 font-bold bg-[#161B26] px-3 py-1.5 rounded-full border border-[#2A3441]">
                                         {syncStatus === 'syncing' && <><Icon name="RefreshCw" size={14} className="animate-spin text-[#00D2D3]" /><span className="text-[#00D2D3]">Guardando...</span></>}
                                         {syncStatus === 'synced' && <><Icon name="CheckCircle" size={14} className="text-green-400" /><span className="text-green-400">Nube Actualizada</span></>}
-                                        {syncStatus === 'error' && <><Icon name="AlertCircle" size={14} className="text-red-400" /><span className="text-red-400">Error al guardar</span></>}
+                                        {syncStatus === 'error' && <><Icon name="AlertCircle" size={14} className="text-red-400" /><span className="text-red-400">Error de conexión</span></>}
                                     </div>
                                 </div>
                                 <div className="overflow-x-auto custom-scrollbar">
@@ -530,7 +560,15 @@ service cloud.firestore {
                                                     <td className="px-3 py-3 text-right border-r border-[#2A3441] font-bold font-mono" style={{ color: Number(row.avance) >= 100 ? '#E056FD' : '#00D2D3' }}>{row.avance}%</td>
                                                     {row.months.map((val, i) => (
                                                         <td key={i} className="p-0 border-r border-[#2A3441]">
-                                                            <input type="text" value={val} onChange={(e) => handleEdit(row.id, i, e.target.value)} placeholder="-" className="w-full h-10 bg-transparent text-center focus:bg-[#161B26] outline-none text-white placeholder-[#2A3441] transition-colors" disabled={dbStatus === 'error'} />
+                                                            <input 
+                                                                type="text" 
+                                                                inputMode="numeric"
+                                                                value={val} 
+                                                                onChange={(e) => handleEdit(row.id, i, e.target.value)} 
+                                                                placeholder="-" 
+                                                                className="w-full h-10 bg-transparent text-center focus:bg-[#161B26] outline-none text-white placeholder-[#2A3441] transition-colors" 
+                                                                disabled={dbStatus === 'error'} 
+                                                            />
                                                         </td>
                                                     ))}
                                                     <td className="px-3 py-3 text-right border-r border-[#2A3441] font-bold bg-[#161B26]/30 font-mono text-white">{row.total}</td>
@@ -543,18 +581,18 @@ service cloud.firestore {
                             </div>
 
                             <div className="flex items-center gap-4 mt-12 pb-8 border-t border-[#2A3441]/50 pt-6">
-                                <div className="w-16 h-16 rounded-full border-2 border-[#00D2D3] shadow-lg flex items-center justify-center bg-[#1A202E] overflow-hidden">
+                                <div className="w-16 h-16 rounded-full border-2 border-[#00D2D3] shadow-lg flex items-center justify-center bg-[#1A202E] overflow-hidden relative">
                                     <img 
                                         src="Logo con el sononauta .jpg" 
                                         alt="Logo" 
-                                        className="w-full h-full object-cover" 
+                                        className="w-full h-full object-cover z-10" 
                                         onError={(e) => { e.target.style.display = 'none'; }} 
                                     />
-                                    <Icon name="Activity" className="text-[#00D2D3] absolute opacity-50" />
+                                    <Icon name="Activity" className="text-[#00D2D3] absolute opacity-50 z-0" />
                                 </div>
                                 <div className="text-[11px] text-[#A5B1C2] leading-relaxed font-medium">
                                     <p className="text-[#00D2D3] font-bold text-[14px]">Camilo Torres Arismendi.</p>
-                                    <p>Tecnologo Medico. | Encargado de Imagenologia. | Cesfam Dalcahue.</p>
+                                    <p>Tecnólogo Médico. | Encargado de Imagenología. | Cesfam Dalcahue.</p>
                                 </div>
                             </div>
                         </div>
