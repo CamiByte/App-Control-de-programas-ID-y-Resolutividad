@@ -20,6 +20,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore-compat.js"></script>
 
+    <!-- SheetJS (Excel) y jsPDF (PDF) -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
     <style>
         body { background-color: #161B26; margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -64,7 +69,10 @@
                     X: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
                     CheckCircle: <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></>,
                     Copy: <><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>,
-                    Save: <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></>
+                    Save: <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></>,
+                    Download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>,
+                    History: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
+                    FileText: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></>
                 };
 
                 return (
@@ -101,7 +109,6 @@
             // Usa la config inyectada si existe, sino usa la por defecto
             const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultFirebaseConfig;
             const appId = typeof __app_id !== 'undefined' ? __app_id : "cesfam-dalcahue-shared-dashboard";
-            const apiKey = ""; // El entorno inyecta la API Key de Gemini automáticamente
 
             // Inicialización de Firebase
             if (!firebase.apps.length) {
@@ -142,6 +149,9 @@
             };
 
             function App() {
+                const currentYear = new Date().getFullYear().toString();
+                const [selectedYear, setSelectedYear] = useState(currentYear);
+                
                 const [activities, setActivities] = useState(INITIAL_DATA);
                 const [selectedService, setSelectedService] = useState('GLOBAL');
                 const [user, setUser] = useState(null);
@@ -153,14 +163,13 @@
                 const [syncStatus, setSyncStatus] = useState('synced'); 
                 const [rulesCopied, setRulesCopied] = useState(false);
                 
+                // Historial
+                const [showLogs, setShowLogs] = useState(false);
+                const [logs, setLogs] = useState([]);
+                
                 // Estado para controlar cambios sin guardar
                 const [hasChanges, setHasChanges] = useState(false);
                 const hasChangesRef = useRef(false);
-
-                const [aiReport, setAiReport] = useState("");
-                const [isAiLoading, setIsAiLoading] = useState(false);
-                const [aiError, setAiError] = useState("");
-                const [showAiModal, setShowAiModal] = useState(false);
 
                 // Mantiene el Ref sincronizado con el state para usarlo dentro de onSnapshot
                 useEffect(() => {
@@ -220,12 +229,13 @@
                     return () => unsubscribe();
                 }, []);
 
-                // Conectar a Firestore
+                // Conectar a Firestore (Dinámico por Año)
                 useEffect(() => {
                     if (!user) return;
+                    setIsLoading(true);
                     
-                    // Aseguramos el uso del appId correcto en la ruta pública
-                    const actsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('activities');
+                    const collectionName = `activities_${selectedYear}`;
+                    const actsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(collectionName);
                     
                     const unsubscribe = actsRef.onSnapshot((snapshot) => {
                         if (snapshot.empty) {
@@ -264,17 +274,50 @@
                         setIsLoading(false);
                     });
                     return () => unsubscribe();
-                }, [user]);
+                }, [user, selectedYear]);
 
-                // Procesamiento de datos y KPIs
+                // Historial de Logs
+                useEffect(() => {
+                    if (!user || !showLogs) return;
+                    const logsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`logs_${selectedYear}`).orderBy('timestamp', 'desc').limit(20);
+                    const unsub = logsRef.onSnapshot(snap => {
+                        setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                    });
+                    return () => unsub();
+                }, [user, showLogs, selectedYear]);
+
+                // Procesamiento de datos y KPIs (Con Forecasting)
                 const processedData = useMemo(() => {
+                    const actualYear = new Date().getFullYear();
+                    const evalYear = parseInt(selectedYear);
+                    let passedMonths = 12; // Asume el año completo por defecto para años pasados
+                    
+                    if (evalYear === actualYear) {
+                        passedMonths = Math.max(1, new Date().getMonth() + 1); // Mes actual (1 a 12)
+                    } else if (evalYear > actualYear) {
+                        passedMonths = 1; // Para años futuros, evita división por 0
+                    }
+
                     return activities.map(act => {
                         const total = act.months.reduce((sum, val) => sum + (Number(val) || 0), 0);
                         const avance = act.meta > 0 ? ((total / act.meta) * 100).toFixed(2) : "0.00";
                         const pendiente = act.meta > 0 ? Math.max(0, act.meta - total) : 0;
-                        return { ...act, total, avance, pendiente };
+                        
+                        // Pronóstico de Cumplimiento
+                        const runRate = (total / passedMonths) * 12;
+                        const projected = Math.round(runRate);
+                        const expectedMetaNow = (act.meta / 12) * passedMonths;
+                        
+                        let forecastAlert = 'neutral';
+                        if (act.meta > 0) {
+                            if (total >= expectedMetaNow * 0.95) forecastAlert = 'good';
+                            else if (total < expectedMetaNow * 0.75) forecastAlert = 'bad';
+                            else forecastAlert = 'warning';
+                        }
+
+                        return { ...act, total, avance, pendiente, projected, forecastAlert };
                     });
-                }, [activities]);
+                }, [activities, selectedYear]);
 
                 const kpis = useMemo(() => {
                     const data = selectedService === 'GLOBAL' 
@@ -333,13 +376,22 @@
                     setSyncStatus('syncing');
                     try {
                         const batch = db.batch();
-                        const activitiesRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('activities');
+                        const activitiesRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`activities_${selectedYear}`);
                         
                         activities.forEach(act => {
                             const docRef = activitiesRef.doc(act.id.toString());
                             batch.set(docRef, act);
                         });
                         
+                        // Guardar en el Historial de Auditoría
+                        const logRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`logs_${selectedYear}`).doc();
+                        batch.set(logRef, {
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                            user: user?.isAnonymous ? 'Usuario de Gestión' : (user?.email || 'Usuario Clínico'),
+                            action: 'Actualización de Prestaciones',
+                            service: selectedService
+                        });
+
                         await batch.commit();
                         
                         setHasChanges(false);
@@ -357,70 +409,78 @@
                     }
                 };
 
-                // Análisis con IA Gemini
-                const generateAiAnalysis = async () => {
-                    setIsAiLoading(true);
-                    setAiError("");
-                    setShowAiModal(true);
-                    
-                    const statsContext = processedData.map(a => `${a.actividad}: Meta ${a.meta}, Realizado ${a.total}, Avance ${a.avance}%`).join('\n');
-                    const prompt = `Analiza los siguientes indicadores de salud del CESFAM Dalcahue:\n${statsContext}\nProporciona un informe breve de riesgos y sugerencias de mejora.`;
-                    
-                    // Implementación de retraso exponencial como mejor práctica
-                    const fetchWithRetry = async (retries = 5, delay = 1000) => {
-                        try {
-                            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ 
-                                    contents: [{ parts: [{ text: prompt }] }],
-                                    systemInstruction: { parts: [{ text: "Eres un analista de gestión clínica experto en salud pública chilena." }] }
-                                })
-                            });
-                            if (!response.ok) throw new Error('API Error');
-                            const result = await response.json();
-                            return result.candidates?.[0]?.content?.parts?.[0]?.text;
-                        } catch (err) {
-                            if (retries > 0) {
-                                await new Promise(r => setTimeout(r, delay));
-                                return fetchWithRetry(retries - 1, delay * 2);
-                            }
-                            throw err;
-                        }
-                    };
+                // Exportación a Excel
+                const exportToExcel = () => {
+                    const data = processedData.map(r => {
+                        const row = { 'ID': r.id, 'Actividad': r.actividad, 'Meta Anual': r.meta, '% Avance': r.avance + '%' };
+                        MONTHS.forEach((m, i) => row[m.label] = r.months[i] || 0);
+                        row['Total Realizado'] = r.total;
+                        row['Pendiente'] = r.pendiente;
+                        row['Proyección Fin de Año'] = r.projected;
+                        return row;
+                    });
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Reporte_CESFAM");
+                    XLSX.writeFile(wb, `Reporte_Resolutividad_CESFAM_${selectedYear}.xlsx`);
+                };
 
-                    try {
-                        const text = await fetchWithRetry();
-                        if(text) {
-                            setAiReport(text);
-                        } else {
-                            throw new Error("Respuesta vacía");
-                        }
-                    } catch (err) {
-                        setAiError("Error al conectar con el servicio de IA. Asegúrate de estar en un entorno que inyecte la API Key, o inténtalo de nuevo más tarde.");
-                    } finally {
-                        setIsAiLoading(false);
-                    }
+                // Exportación a PDF
+                const exportToPDF = () => {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF('landscape');
+                    
+                    doc.setFontSize(18);
+                    doc.text(`Reporte de Metas y Resolutividad CESFAM - Año ${selectedYear}`, 14, 20);
+                    doc.setFontSize(11);
+                    doc.text(`Generado el: ${new Date().toLocaleDateString()}`, 14, 28);
+
+                    const tableColumn = ["Actividad", "Meta", "Avance", ...MONTHS.map(m=>m.label), "Total", "Pdte"];
+                    const tableRows = processedData.map(r => [
+                        r.actividad, r.meta, r.avance + '%', ...r.months.map(m => m || '-'), r.total, r.pendiente
+                    ]);
+
+                    doc.autoTable({
+                        head: [tableColumn],
+                        body: tableRows,
+                        startY: 35,
+                        styles: { fontSize: 8, cellPadding: 2 },
+                        headStyles: { fillColor: [0, 210, 211], textColor: [22, 27, 38] },
+                        alternateRowStyles: { fillColor: [240, 240, 240] }
+                    });
+
+                    doc.save(`Reporte_Resolutividad_CESFAM_${selectedYear}.pdf`);
                 };
 
                 if (isLoading) return <div className="min-h-screen bg-[#161B26] flex items-center justify-center text-[#00D2D3] font-mono uppercase tracking-widest text-center p-4">Conectando a la Base de Datos...<br/>(Si esto demora, revisa tu conexión a Internet)</div>;
 
                 return (
                     <div className="min-h-screen bg-[#161B26] text-white font-sans p-4 md:p-8 selection:bg-[#00D2D3]/30 custom-scrollbar overflow-y-auto relative">
-                        {/* Modal de Inteligencia Artificial */}
-                        {showAiModal && (
+                        
+                        {/* Modal Historial de Modificaciones */}
+                        {showLogs && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#161B26]/80 backdrop-blur-sm">
-                                <div className="bg-[#1A202E] border border-[#2A3441] w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
-                                    <div className="p-6 border-b border-[#2A3441] flex justify-between items-center bg-gradient-to-r from-[#1A202E] to-[#161B26]">
-                                        <div className="flex items-center gap-3"><Icon name="Sparkles" className="text-[#00D2D3]" size={20} /><h2 className="font-bold uppercase text-sm">Análisis Inteligente ✨</h2></div>
-                                        <button onClick={() => setShowAiModal(false)} className="text-[#A5B1C2] hover:text-white transition-colors"><Icon name="X" size={20} /></button>
+                                <div className="bg-[#1A202E] border border-[#2A3441] w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
+                                    <div className="p-5 border-b border-[#2A3441] flex justify-between items-center bg-[#1A202E] rounded-t-2xl">
+                                        <div className="flex items-center gap-3"><Icon name="History" className="text-[#00D2D3]" size={20} /><h2 className="font-bold uppercase text-sm tracking-widest">Auditoría {selectedYear}</h2></div>
+                                        <button onClick={() => setShowLogs(false)} className="text-[#A5B1C2] hover:text-white"><Icon name="X" size={20} /></button>
                                     </div>
-                                    <div className="p-8 overflow-y-auto custom-scrollbar text-white">
-                                        {isAiLoading ? <div className="flex flex-col items-center justify-center py-12 gap-4 animate-pulse"><Icon name="BrainCircuit" size={48} className="text-[#00D2D3] animate-spin-slow" /><p className="text-[#A5B1C2] text-sm italic">Generando informe estratégico...</p></div>
-                                        : aiError ? <div className="text-red-400 text-center text-sm p-4 bg-red-400/10 rounded-lg border border-red-400/20">{aiError}</div>
-                                        : <div className="whitespace-pre-wrap text-[#A5B1C2] leading-relaxed text-sm">{aiReport}</div>}
+                                    <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
+                                        {logs.length === 0 ? <p className="text-center text-[#A5B1C2] text-sm py-4">No hay registros de modificaciones para este año.</p> : 
+                                            <div className="space-y-4">
+                                                {logs.map(log => (
+                                                    <div key={log.id} className="border-l-2 border-[#00D2D3] pl-4 py-1">
+                                                        <p className="text-xs text-[#A5B1C2]">{log.timestamp ? log.timestamp.toDate().toLocaleString() : 'Justo ahora'}</p>
+                                                        <p className="text-sm font-medium text-white">{log.action} - {log.service === 'GLOBAL' ? 'Global' : 'Servicio Específico'}</p>
+                                                        <p className="text-[10px] text-[#A5B1C2] mt-1 font-mono uppercase">Por: {log.user}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        }
                                     </div>
-                                    <div className="p-4 bg-[#161B26]/50 border-t border-[#2A3441] flex justify-end"><button onClick={() => setShowAiModal(false)} className="text-xs font-bold text-[#A5B1C2] hover:text-white px-6 py-2 uppercase tracking-widest text-white">Cerrar</button></div>
+                                    <div className="p-4 bg-[#161B26]/50 border-t border-[#2A3441] flex justify-end rounded-b-2xl">
+                                        <button onClick={() => setShowLogs(false)} className="text-xs font-bold text-[#A5B1C2] hover:text-white px-6 py-2 uppercase tracking-widest text-white">Cerrar</button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -505,7 +565,22 @@ service cloud.firestore {
                                         </button>
                                     )}
                                     
-                                    <select className="bg-[#1A202E] border border-[#2A3441] px-4 py-2 rounded-lg text-sm outline-none focus:ring-1 focus:ring-[#00D2D3] cursor-pointer min-w-[220px] text-white" value={selectedService} onChange={(e) => setSelectedService(e.target.value)}>
+                                    {/* Controles Avanzados (Exportación, Historial y Año) */}
+                                    <div className="flex bg-[#1A202E] border border-[#2A3441] rounded-lg p-1.5 gap-1 items-center">
+                                        <button onClick={exportToExcel} title="Exportar a Excel" className="p-1.5 text-green-400 hover:bg-green-400/20 rounded-md transition-colors"><Icon name="FileText" size={18} /></button>
+                                        <button onClick={exportToPDF} title="Exportar a PDF" className="p-1.5 text-red-400 hover:bg-red-400/20 rounded-md transition-colors"><Icon name="Download" size={18} /></button>
+                                        <div className="w-px h-5 bg-[#2A3441] mx-1"></div>
+                                        <button onClick={() => setShowLogs(true)} title="Ver Historial" className="p-1.5 text-[#00D2D3] hover:bg-[#00D2D3]/20 rounded-md transition-colors"><Icon name="History" size={18} /></button>
+                                        <div className="w-px h-5 bg-[#2A3441] mx-1"></div>
+                                        <select className="bg-transparent border-none outline-none text-white font-bold text-sm cursor-pointer pr-2" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
+                                            <option value="2024" className="bg-[#1A202E]">Año 2024</option>
+                                            <option value="2025" className="bg-[#1A202E]">Año 2025</option>
+                                            <option value="2026" className="bg-[#1A202E]">Año 2026</option>
+                                            <option value="2027" className="bg-[#1A202E]">Año 2027</option>
+                                        </select>
+                                    </div>
+
+                                    <select className="bg-[#1A202E] border border-[#2A3441] px-4 py-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-[#00D2D3] cursor-pointer min-w-[220px] text-white" value={selectedService} onChange={(e) => setSelectedService(e.target.value)}>
                                         <option value="GLOBAL">Vista Global (Todos)</option>
                                         {processedData.map(a => <option key={a.id} value={a.id}>{a.actividad}</option>)}
                                     </select>
@@ -515,7 +590,7 @@ service cloud.firestore {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="bg-gradient-to-br from-[#BE2EDD] to-[#E056FD] p-6 rounded-2xl shadow-lg relative overflow-hidden border border-white/10 group">
                                     <Icon name="Target" className="absolute -right-4 -top-4 opacity-20 group-hover:scale-110 transition-transform" size={100} />
-                                    <p className="text-white/80 text-xs font-bold uppercase tracking-widest">Meta Anual</p>
+                                    <p className="text-white/80 text-xs font-bold uppercase tracking-widest">Meta Anual {selectedYear}</p>
                                     <p className="text-4xl font-bold mt-2 text-white">{kpis.meta.toLocaleString('es-CL')}</p>
                                 </div>
                                 <div className="bg-[#1A202E] border border-[#2A3441] p-6 rounded-2xl flex flex-col justify-between shadow-inner">
@@ -552,16 +627,44 @@ service cloud.firestore {
                                 </div>
 
                                 <div className="bg-[#1A202E] p-6 rounded-2xl border border-[#2A3441] shadow-xl overflow-y-auto max-h-[310px] custom-scrollbar">
-                                    <h2 className="text-sm font-bold uppercase text-[#A5B1C2] mb-6 tracking-widest">Estado de Metas</h2>
+                                    <h2 className="text-sm font-bold uppercase text-[#A5B1C2] mb-6 tracking-widest">Estado y Pronóstico de Metas</h2>
                                     <div className="space-y-6">
                                         {processedData.map(act => {
                                             const hasMeta = act.meta > 0;
                                             const isComp = hasMeta && Number(act.avance) >= 100;
                                             const color = isComp ? '#E056FD' : (hasMeta ? '#00D2D3' : '#A5B1C2');
+                                            
+                                            // Forecasting UI Elements
+                                            let alertIcon = null;
+                                            let forecastText = "";
+                                            if (hasMeta && !isComp) {
+                                                if (act.forecastAlert === 'bad') {
+                                                    alertIcon = <Icon name="TrendingDown" size={14} className="text-red-400" />;
+                                                    forecastText = `Proyección fin de año: ${act.projected} ⚠️ Riesgo`;
+                                                } else if (act.forecastAlert === 'good') {
+                                                    alertIcon = <Icon name="TrendingUp" size={14} className="text-[#00D2D3]" />;
+                                                    forecastText = `Proyección fin de año: ${act.projected} ✨ Óptimo`;
+                                                } else {
+                                                    alertIcon = <Icon name="Activity" size={14} className="text-yellow-400" />;
+                                                    forecastText = `Proyección fin de año: ${act.projected} - Estable`;
+                                                }
+                                            }
+
                                             return (
-                                                <div key={act.id} className="space-y-2">
+                                                <div key={act.id} className="space-y-2 group">
                                                     <div className="flex justify-between items-center text-[11px]">
-                                                        <div className="flex items-center gap-2 truncate pr-4 text-[#A5B1C2]"><span style={{ color }}><Icon name={getIconNameForActivity(act.actividad)} size={14} /></span><span className="truncate uppercase font-medium">{act.actividad}</span></div>
+                                                        <div className="flex flex-col gap-0.5 pr-4">
+                                                            <div className="flex items-center gap-2 text-[#A5B1C2]">
+                                                                <span style={{ color }}><Icon name={getIconNameForActivity(act.actividad)} size={14} /></span>
+                                                                <span className="truncate uppercase font-medium">{act.actividad}</span>
+                                                                {alertIcon}
+                                                            </div>
+                                                            {hasMeta && !isComp && (
+                                                                <span className="text-[9px] text-[#A5B1C2] opacity-80 pl-6">
+                                                                    {forecastText}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <span className="font-bold" style={{ color }}>{hasMeta ? `${act.avance}%` : `${act.total} Realizados`}</span>
                                                     </div>
                                                     <div className="relative h-1.5 bg-[#161B26] rounded-full">
