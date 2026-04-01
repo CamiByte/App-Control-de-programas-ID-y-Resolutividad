@@ -33,6 +33,11 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #00D2D3; }
         @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .animate-spin-slow { animation: spin-slow 3s linear infinite; }
+        
+        /* Animación para Notificaciones Toast */
+        @keyframes toast-enter { from { transform: translate(-50%, -150%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+        .animate-toast { animation: toast-enter 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        
         input:focus { outline: none; }
         
         /* Ocultar flechas de los input number */
@@ -56,6 +61,7 @@
                     Activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
                     Target: <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></>,
                     TrendingUp: <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />,
+                    TrendingDown: <polyline points="23 18 13.5 8.5 8.5 13.5 1 6" />,
                     AlertCircle: <><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>,
                     BarChart3: <><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></>,
                     Scan: <><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><line x1="7" y1="12" x2="17" y2="12" /></>,
@@ -72,7 +78,10 @@
                     Save: <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></>,
                     Download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>,
                     History: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
-                    FileText: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></>
+                    FileText: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></>,
+                    Smartphone: <><rect x="5" y="2" width="14" height="20" rx="2" ry="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></>,
+                    Lock: <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>,
+                    Unlock: <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /></>
                 };
 
                 return (
@@ -94,7 +103,7 @@
             };
 
             // =========================================================================
-            // CONFIGURACIÓN DE FIREBASE (Adaptado al entorno)
+            // CONFIGURACIÓN DE FIREBASE
             // =========================================================================
             const defaultFirebaseConfig = {
               apiKey: "AIzaSyBCrZ014WwjBAdQXUV2h-u0-myquCuo0cE",
@@ -106,11 +115,9 @@
               measurementId: "G-0XMVJ2CLPH"
             };
 
-            // Usa la config inyectada si existe, sino usa la por defecto
             const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultFirebaseConfig;
             const appId = typeof __app_id !== 'undefined' ? __app_id : "cesfam-dalcahue-shared-dashboard";
 
-            // Inicialización de Firebase
             if (!firebase.apps.length) {
                 firebase.initializeApp(firebaseConfig);
             }
@@ -157,29 +164,37 @@
                 const [user, setUser] = useState(null);
                 const [isLoading, setIsLoading] = useState(true);
                 
-                // Estados del Sistema
+                // Estados de Sistema y UI
                 const [dbStatus, setDbStatus] = useState('checking'); 
                 const [dbErrorType, setDbErrorType] = useState(null);
                 const [syncStatus, setSyncStatus] = useState('synced'); 
                 const [rulesCopied, setRulesCopied] = useState(false);
                 
-                // Historial
+                // Modal, QR y Logs
                 const [showLogs, setShowLogs] = useState(false);
                 const [logs, setLogs] = useState([]);
+                const [showQR, setShowQR] = useState(true);
                 
-                // Estado para controlar cambios sin guardar
+                // Nuevas Funcionalidades: Notificaciones y Bloqueo
+                const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+                const [lockedMonths, setLockedMonths] = useState(Array(12).fill(false));
+                
                 const [hasChanges, setHasChanges] = useState(false);
                 const hasChangesRef = useRef(false);
 
-                // Mantiene el Ref sincronizado con el state para usarlo dentro de onSnapshot
                 useEffect(() => {
                     hasChangesRef.current = hasChanges;
                 }, [hasChanges]);
 
+                // Mostrar Toast
+                const showToastNotification = (message, type = 'success') => {
+                    setToast({ show: true, message, type });
+                    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3500);
+                };
+
                 // Función de copiado limpio
                 const handleCopyRules = () => {
                     const cleanRules = "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}";
-                    
                     try {
                         if (navigator.clipboard && window.isSecureContext) {
                             navigator.clipboard.writeText(cleanRules).then(() => {
@@ -191,7 +206,6 @@
                             textArea.value = cleanRules;
                             textArea.style.position = "fixed";
                             textArea.style.left = "-999999px";
-                            textArea.style.top = "-999999px";
                             document.body.appendChild(textArea);
                             textArea.focus();
                             textArea.select();
@@ -205,7 +219,7 @@
                     }
                 };
 
-                // Iniciar Autenticación Segura (Verifica token inyectado)
+                // Iniciar Autenticación Segura
                 useEffect(() => {
                     const initAuth = async () => {
                         try {
@@ -215,7 +229,6 @@
                                 await auth.signInAnonymously();
                             }
                         } catch (e) { 
-                            console.error("Error Auth:", e); 
                             setDbStatus('error');
                             setDbErrorType('auth');
                             setIsLoading(false);
@@ -229,18 +242,28 @@
                     return () => unsubscribe();
                 }, []);
 
-                // Conectar a Firestore (Dinámico por Año)
+                // Conectar a Firestore (Actividades y Configuración)
                 useEffect(() => {
                     if (!user) return;
                     setIsLoading(true);
                     
                     const collectionName = `activities_${selectedYear}`;
                     const actsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(collectionName);
+                    const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc(`settings_${selectedYear}`);
                     
+                    // Escuchar Configuración (Meses Bloqueados)
+                    const unsubConfig = configRef.onSnapshot(doc => {
+                        if (doc.exists) {
+                            if (!hasChangesRef.current) setLockedMonths(doc.data().lockedMonths || Array(12).fill(false));
+                        } else {
+                            setLockedMonths(Array(12).fill(false));
+                        }
+                    });
+
+                    // Escuchar Actividades
                     const unsubscribe = actsRef.onSnapshot((snapshot) => {
                         if (snapshot.empty) {
                             setSyncStatus('syncing');
-                            // Si está vacío, inicializamos la BD usando BATCH
                             const batch = db.batch();
                             INITIAL_DATA.forEach(act => {
                                 const docRef = actsRef.doc(act.id.toString());
@@ -250,7 +273,6 @@
                         } else {
                             const data = snapshot.docs.map(d => d.data()).sort((a, b) => a.id - b.id);
                             
-                            // Solo actualizamos la pantalla si NO hay cambios locales sin guardar.
                             if (!hasChangesRef.current) {
                                 setActivities(data);
                                 setSyncStatus('synced');
@@ -261,9 +283,7 @@
                         }
                         setIsLoading(false);
                     }, (err) => {
-                        console.error("Error Firestore:", err);
                         setDbStatus('error');
-                        
                         if (err.message.includes("Cloud Firestore API has not been used") || err.message.includes("is disabled")) {
                             setDbErrorType('not-created');
                         } else if (err.message.includes("permission-denied") || err.message.includes("Missing or insufficient permissions")) {
@@ -273,7 +293,7 @@
                         }
                         setIsLoading(false);
                     });
-                    return () => unsubscribe();
+                    return () => { unsubscribe(); unsubConfig(); };
                 }, [user, selectedYear]);
 
                 // Historial de Logs
@@ -286,16 +306,16 @@
                     return () => unsub();
                 }, [user, showLogs, selectedYear]);
 
-                // Procesamiento de datos y KPIs (Con Forecasting)
+                // Procesamiento de datos y KPIs
                 const processedData = useMemo(() => {
                     const actualYear = new Date().getFullYear();
                     const evalYear = parseInt(selectedYear);
-                    let passedMonths = 12; // Asume el año completo por defecto para años pasados
+                    let passedMonths = 12;
                     
                     if (evalYear === actualYear) {
-                        passedMonths = Math.max(1, new Date().getMonth() + 1); // Mes actual (1 a 12)
+                        passedMonths = Math.max(1, new Date().getMonth() + 1);
                     } else if (evalYear > actualYear) {
-                        passedMonths = 1; // Para años futuros, evita división por 0
+                        passedMonths = 1;
                     }
 
                     return activities.map(act => {
@@ -303,7 +323,6 @@
                         const avance = act.meta > 0 ? ((total / act.meta) * 100).toFixed(2) : "0.00";
                         const pendiente = act.meta > 0 ? Math.max(0, act.meta - total) : 0;
                         
-                        // Pronóstico de Cumplimiento
                         const runRate = (total / passedMonths) * 12;
                         const projected = Math.round(runRate);
                         const expectedMetaNow = (act.meta / 12) * passedMonths;
@@ -348,9 +367,10 @@
                     return { chartTicks: ticks, chartMax: niceMax };
                 }, [monthlyTotals]);
 
-                // Función de Edición LOCAL
-                const handleEdit = (id, mIdx, val) => {
+                // Funciones de Edición LOCAL (Meses y Metas)
+                const handleMonthEdit = (id, mIdx, val) => {
                     if (val !== '' && !/^\d+$/.test(val)) return;
+                    if (lockedMonths[mIdx]) return; 
 
                     const updatedActivities = activities.map(act => {
                         if (act.id === id) {
@@ -366,29 +386,58 @@
                     setSyncStatus('unsaved');
                 };
 
+                const handleMetaEdit = (id, val) => {
+                    if (val !== '' && !/^\d+$/.test(val)) return;
+
+                    const updatedActivities = activities.map(act => {
+                        if (act.id === id) {
+                            return { ...act, meta: val === '' ? 0 : Number(val) };
+                        }
+                        return act;
+                    });
+                    
+                    setActivities(updatedActivities);
+                    setHasChanges(true);
+                    setSyncStatus('unsaved');
+                };
+
+                const toggleMonthLock = (mIdx) => {
+                    const newLocked = [...lockedMonths];
+                    newLocked[mIdx] = !newLocked[mIdx];
+                    setLockedMonths(newLocked);
+                    setHasChanges(true);
+                    setSyncStatus('unsaved');
+                };
+
                 // Función de GUARDADO EN LA NUBE
                 const handleSave = async () => {
                     if (!user || dbStatus === 'error') {
                         setSyncStatus('error');
+                        showToastNotification('Error: Sin conexión', 'error');
                         return; 
                     }
                     
                     setSyncStatus('syncing');
                     try {
                         const batch = db.batch();
-                        const activitiesRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`activities_${selectedYear}`);
                         
+                        // Guardar Actividades
+                        const activitiesRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`activities_${selectedYear}`);
                         activities.forEach(act => {
                             const docRef = activitiesRef.doc(act.id.toString());
                             batch.set(docRef, act);
                         });
                         
-                        // Guardar en el Historial de Auditoría
+                        // Guardar Configuración (Meses Bloqueados)
+                        const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc(`settings_${selectedYear}`);
+                        batch.set(configRef, { lockedMonths }, { merge: true });
+
+                        // Guardar Historial de Auditoría
                         const logRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`logs_${selectedYear}`).doc();
                         batch.set(logRef, {
                             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
                             user: user?.isAnonymous ? 'Usuario de Gestión' : (user?.email || 'Usuario Clínico'),
-                            action: 'Actualización de Prestaciones',
+                            action: 'Actualización de Prestaciones / Metas',
                             service: selectedService
                         });
 
@@ -396,11 +445,12 @@
                         
                         setHasChanges(false);
                         setSyncStatus('synced');
+                        showToastNotification('Datos sincronizados correctamente');
                     } catch (error) {
-                        console.error("Error crítico guardando en Firebase:", error);
+                        console.error("Error crítico guardando:", error);
                         setSyncStatus('error');
-                        
                         setDbStatus('error');
+                        showToastNotification('Error al guardar datos', 'error');
                         if (error.message && (error.message.includes("permission-denied") || error.message.includes("Missing or insufficient permissions"))) {
                             setDbErrorType('permissions');
                         } else {
@@ -457,6 +507,14 @@
                 return (
                     <div className="min-h-screen bg-[#161B26] text-white font-sans p-4 md:p-8 selection:bg-[#00D2D3]/30 custom-scrollbar overflow-y-auto relative">
                         
+                        {/* Notificación Toast Flotante */}
+                        {toast.show && (
+                            <div className={`fixed top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[200] flex items-center gap-3 animate-toast ${toast.type === 'success' ? 'bg-[#00D2D3] text-[#161B26]' : 'bg-red-500 text-white'}`}>
+                                <Icon name={toast.type === 'success' ? "CheckCircle" : "AlertCircle"} size={20} />
+                                <span className="font-bold text-sm tracking-wide uppercase">{toast.message}</span>
+                            </div>
+                        )}
+
                         {/* Modal Historial de Modificaciones */}
                         {showLogs && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#161B26]/80 backdrop-blur-sm">
@@ -688,12 +746,12 @@ service cloud.firestore {
                                         {dbStatus === 'connected' ? "Conexión estable con Firestore." : "Desconectado. Los datos no se guardarán en la nube."}
                                     </div>
                                     
-                                    {/* Indicador Visual de Estado de Guardado */}
+                                    {/* Indicador Visual de Estado de Guardado en tabla */}
                                     <div className="flex items-center gap-2 font-bold bg-[#161B26] px-3 py-1.5 rounded-full border border-[#2A3441]">
-                                        {syncStatus === 'unsaved' && <><Icon name="AlertCircle" size={14} className="text-yellow-400" /><span className="text-yellow-400">Cambios sin guardar</span></>}
+                                        {syncStatus === 'unsaved' && <><Icon name="AlertCircle" size={14} className="text-yellow-400" /><span className="text-yellow-400">Cambios locales</span></>}
                                         {syncStatus === 'syncing' && <><Icon name="RefreshCw" size={14} className="animate-spin text-[#00D2D3]" /><span className="text-[#00D2D3]">Guardando...</span></>}
-                                        {syncStatus === 'synced' && <><Icon name="CheckCircle" size={14} className="text-green-400" /><span className="text-green-400">Nube Actualizada</span></>}
-                                        {syncStatus === 'error' && <><Icon name="AlertCircle" size={14} className="text-red-400" /><span className="text-red-400">Error de conexión</span></>}
+                                        {syncStatus === 'synced' && <><Icon name="CheckCircle" size={14} className="text-[#A5B1C2]" /><span className="text-[#A5B1C2]">Todo Sincronizado</span></>}
+                                        {syncStatus === 'error' && <><Icon name="AlertCircle" size={14} className="text-red-400" /><span className="text-red-400">Error</span></>}
                                     </div>
                                 </div>
                                 <div className="overflow-x-auto custom-scrollbar">
@@ -701,29 +759,57 @@ service cloud.firestore {
                                         <thead className="bg-[#161B26] text-[#A5B1C2] uppercase font-bold tracking-widest">
                                             <tr>
                                                 <th className="px-4 py-4 border-r border-[#2A3441] sticky left-0 bg-[#161B26] z-10 text-white">Actividad</th>
-                                                <th className="px-3 py-4 border-r border-[#2A3441] text-right text-white">Meta</th>
+                                                <th className="px-3 py-4 border-r border-[#2A3441] text-right text-[#BE2EDD]">Editar Meta</th>
                                                 <th className="px-3 py-4 border-r border-[#2A3441] text-right text-white">% Avance</th>
-                                                {MONTHS.map(m => <th key={m.key} className="px-1 py-4 border-r border-[#2A3441] text-center min-w-[50px] text-white">{m.label}</th>)}
+                                                {MONTHS.map((m, i) => (
+                                                    <th key={m.key} className="px-1 py-2 border-r border-[#2A3441] text-center min-w-[50px] text-white">
+                                                        <div className="flex flex-col items-center justify-center gap-1">
+                                                            <span>{m.label}</span>
+                                                            <button 
+                                                                onClick={() => toggleMonthLock(i)}
+                                                                className={`p-1 rounded transition-colors ${lockedMonths[i] ? 'text-red-400 bg-red-400/10' : 'text-[#A5B1C2] hover:bg-[#2A3441]'}`}
+                                                                title={lockedMonths[i] ? "Desbloquear Mes" : "Bloquear Mes"}
+                                                            >
+                                                                <Icon name={lockedMonths[i] ? "Lock" : "Unlock"} size={12} />
+                                                            </button>
+                                                        </div>
+                                                    </th>
+                                                ))}
                                                 <th className="px-3 py-4 border-r border-[#2A3441] text-right text-white">Total</th>
                                                 <th className="px-3 py-4 text-right text-white">Pdte.</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {processedData.map((row) => (
-                                                <tr key={row.id} className="border-b border-[#2A3441] hover:bg-[#202838] transition-colors">
+                                                <tr key={row.id} className="border-b border-[#2A3441] hover:bg-[#202838] transition-colors group/row">
                                                     <td className="px-4 py-3 font-semibold text-white border-r border-[#2A3441] sticky left-0 bg-[#1A202E] z-10">{row.actividad}</td>
-                                                    <td className="px-3 py-3 text-right border-r border-[#2A3441] text-[#A5B1C2] font-mono">{row.meta.toLocaleString('es-CL')}</td>
+                                                    
+                                                    {/* Celda Editable de la Meta */}
+                                                    <td className="p-0 border-r border-[#2A3441] relative group-hover/row:bg-[#161B26]/30">
+                                                        <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none opacity-20">
+                                                            <Icon name="Target" size={12} className="text-[#BE2EDD]" />
+                                                        </div>
+                                                        <input 
+                                                            type="text" 
+                                                            inputMode="numeric"
+                                                            value={row.meta} 
+                                                            onChange={(e) => handleMetaEdit(row.id, e.target.value)} 
+                                                            className="w-full h-11 bg-transparent text-right pr-6 focus:bg-[#161B26] outline-none text-[#BE2EDD] font-bold font-mono transition-colors" 
+                                                        />
+                                                    </td>
+                                                    
                                                     <td className="px-3 py-3 text-right border-r border-[#2A3441] font-bold font-mono" style={{ color: Number(row.avance) >= 100 ? '#E056FD' : '#00D2D3' }}>{row.avance}%</td>
                                                     {row.months.map((val, i) => (
-                                                        <td key={i} className="p-0 border-r border-[#2A3441]">
+                                                        <td key={i} className={`p-0 border-r border-[#2A3441] transition-colors ${lockedMonths[i] ? 'bg-red-900/10 opacity-70 cursor-not-allowed' : ''}`}>
                                                             <input 
                                                                 type="text" 
                                                                 inputMode="numeric"
                                                                 value={val} 
-                                                                onChange={(e) => handleEdit(row.id, i, e.target.value)} 
+                                                                onChange={(e) => handleMonthEdit(row.id, i, e.target.value)} 
                                                                 placeholder="-" 
-                                                                className="w-full h-10 bg-transparent text-center focus:bg-[#161B26] outline-none text-white placeholder-[#2A3441] transition-colors" 
-                                                                disabled={dbStatus === 'error' && !hasChanges} 
+                                                                className={`w-full h-10 bg-transparent text-center focus:bg-[#161B26] outline-none text-white placeholder-[#2A3441] transition-colors ${lockedMonths[i] ? 'cursor-not-allowed' : ''}`} 
+                                                                disabled={lockedMonths[i] || (dbStatus === 'error' && !hasChanges)} 
+                                                                title={lockedMonths[i] ? "Mes bloqueado" : ""}
                                                             />
                                                         </td>
                                                     ))}
@@ -736,8 +822,9 @@ service cloud.firestore {
                                 </div>
                             </div>
 
+                            {/* Firma Original (Sin Modificar su Ubicación) */}
                             <div className="flex items-center gap-4 mt-12 pb-8 border-t border-[#2A3441]/50 pt-6">
-                                <div className="w-16 h-16 rounded-full border-2 border-[#00D2D3] shadow-lg flex items-center justify-center bg-[#1A202E] overflow-hidden relative">
+                                <div className="w-16 h-16 rounded-full border-2 border-[#00D2D3] shadow-lg flex items-center justify-center bg-[#1A202E] overflow-hidden relative shrink-0">
                                     <img 
                                         src="Logo con el sononauta .jpg" 
                                         alt="Logo" 
@@ -752,6 +839,32 @@ service cloud.firestore {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Widget de QR (Estático al final de la página) */}
+                        {showQR && (
+                            <div className="absolute bottom-6 right-6 bg-[#1A202E] border border-[#2A3441] p-3 rounded-2xl shadow-lg flex flex-col items-center gap-2 z-10 group hover:border-[#00D2D3]/50 transition-all">
+                                <button 
+                                    onClick={() => setShowQR(false)} 
+                                    className="absolute -top-3 -right-3 bg-[#161B26] border border-[#2A3441] rounded-full p-1 text-[#A5B1C2] hover:text-white hover:bg-red-500 hover:border-red-500 transition-all z-10 shadow-md"
+                                    title="Ocultar QR"
+                                >
+                                    <Icon name="X" size={14} />
+                                </button>
+                                <div className="bg-white p-2 rounded-xl shadow-inner min-w-[80px] min-h-[80px] flex items-center justify-center">
+                                    <img 
+                                        src={`https://quickchart.io/qr?text=${encodeURIComponent('https://camibyte.github.io/App-Control-de-programas-ID-y-Resolutividad/')}&dark=161B26&size=100&margin=1`} 
+                                        alt="Código QR para Móvil" 
+                                        className="w-[80px] h-[80px] object-contain" 
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                </div>
+                                <div className="flex items-center gap-1.5 text-[#00D2D3]">
+                                    <Icon name="Smartphone" size={14} />
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-center mt-0.5">Móvil</p>
+                                </div>
+                            </div>
+                        )}
+
                     </div>
                 );
             }
