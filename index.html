@@ -28,7 +28,7 @@
     <style>
         body { background-color: #161B26; margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #161B26; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #2A3441; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #00D2D3; }
         @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -37,6 +37,17 @@
         /* Animación para Notificaciones Toast */
         @keyframes toast-enter { from { transform: translate(-50%, -150%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
         .animate-toast { animation: toast-enter 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        /* Animación para el Fondo Flotante */
+        @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(50px, -50px) scale(1.1); }
+            66% { transform: translate(-40px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob { animation: blob 15s infinite alternate ease-in-out; }
+        .animation-delay-2000 { animation-delay: 2s; }
+        .animation-delay-4000 { animation-delay: 4s; }
         
         input:focus { outline: none; }
         
@@ -54,6 +65,15 @@
     <script type="text/babel">
         (() => {
             const { useState, useMemo, useEffect, useRef } = React;
+
+            // --- Componente: Fondo Animado ---
+            const AnimatedBackground = () => (
+                <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-[#161B26]">
+                    <div className="absolute top-[-10%] left-[-10%] w-[40rem] h-[40rem] bg-[#00D2D3] rounded-full mix-blend-screen filter blur-[150px] opacity-10 animate-blob"></div>
+                    <div className="absolute top-[20%] right-[-10%] w-[40rem] h-[40rem] bg-[#BE2EDD] rounded-full mix-blend-screen filter blur-[150px] opacity-10 animate-blob animation-delay-2000"></div>
+                    <div className="absolute bottom-[-20%] left-[20%] w-[40rem] h-[40rem] bg-[#0097e6] rounded-full mix-blend-screen filter blur-[150px] opacity-10 animate-blob animation-delay-4000"></div>
+                </div>
+            );
 
             // --- Iconos en formato SVG ---
             const Icon = ({ name, size = 24, className = "" }) => {
@@ -178,6 +198,7 @@
                 // Nuevas Funcionalidades: Notificaciones y Bloqueo
                 const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
                 const [lockedMonths, setLockedMonths] = useState(Array(12).fill(false));
+                const [lockedMeta, setLockedMeta] = useState(false);
                 
                 const [hasChanges, setHasChanges] = useState(false);
                 const hasChangesRef = useRef(false);
@@ -254,9 +275,13 @@
                     // Escuchar Configuración (Meses Bloqueados)
                     const unsubConfig = configRef.onSnapshot(doc => {
                         if (doc.exists) {
-                            if (!hasChangesRef.current) setLockedMonths(doc.data().lockedMonths || Array(12).fill(false));
+                            if (!hasChangesRef.current) {
+                                setLockedMonths(doc.data().lockedMonths || Array(12).fill(false));
+                                setLockedMeta(doc.data().lockedMeta || false);
+                            }
                         } else {
                             setLockedMonths(Array(12).fill(false));
+                            setLockedMeta(false);
                         }
                     });
 
@@ -388,6 +413,7 @@
 
                 const handleMetaEdit = (id, val) => {
                     if (val !== '' && !/^\d+$/.test(val)) return;
+                    if (lockedMeta) return;
 
                     const updatedActivities = activities.map(act => {
                         if (act.id === id) {
@@ -405,6 +431,12 @@
                     const newLocked = [...lockedMonths];
                     newLocked[mIdx] = !newLocked[mIdx];
                     setLockedMonths(newLocked);
+                    setHasChanges(true);
+                    setSyncStatus('unsaved');
+                };
+
+                const toggleMetaLock = () => {
+                    setLockedMeta(!lockedMeta);
                     setHasChanges(true);
                     setSyncStatus('unsaved');
                 };
@@ -430,7 +462,7 @@
                         
                         // Guardar Configuración (Meses Bloqueados)
                         const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc(`settings_${selectedYear}`);
-                        batch.set(configRef, { lockedMonths }, { merge: true });
+                        batch.set(configRef, { lockedMonths, lockedMeta }, { merge: true });
 
                         // Guardar Historial de Auditoría
                         const logRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`logs_${selectedYear}`).doc();
@@ -502,86 +534,95 @@
                     doc.save(`Reporte_Resolutividad_CESFAM_${selectedYear}.pdf`);
                 };
 
-                if (isLoading) return <div className="min-h-screen bg-[#161B26] flex items-center justify-center text-[#00D2D3] font-mono uppercase tracking-widest text-center p-4">Conectando a la Base de Datos...<br/>(Si esto demora, revisa tu conexión a Internet)</div>;
+                if (isLoading) return (
+                    <>
+                        <AnimatedBackground />
+                        <div className="min-h-screen relative z-10 flex items-center justify-center text-[#00D2D3] font-mono uppercase tracking-widest text-center p-4">
+                            Conectando a la Base de Datos...<br/>(Si esto demora, revisa tu conexión a Internet)
+                        </div>
+                    </>
+                );
 
                 return (
-                    <div className="min-h-screen bg-[#161B26] text-white font-sans p-4 md:p-8 selection:bg-[#00D2D3]/30 custom-scrollbar overflow-y-auto relative">
-                        
-                        {/* Notificación Toast Flotante */}
-                        {toast.show && (
-                            <div className={`fixed top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[200] flex items-center gap-3 animate-toast ${toast.type === 'success' ? 'bg-[#00D2D3] text-[#161B26]' : 'bg-red-500 text-white'}`}>
-                                <Icon name={toast.type === 'success' ? "CheckCircle" : "AlertCircle"} size={20} />
-                                <span className="font-bold text-sm tracking-wide uppercase">{toast.message}</span>
-                            </div>
-                        )}
+                    <>
+                        <AnimatedBackground />
+                        <div className="min-h-screen bg-transparent text-white font-sans p-4 md:p-8 selection:bg-[#00D2D3]/30 custom-scrollbar overflow-y-auto relative z-10">
+                            
+                            {/* Notificación Toast Flotante */}
+                            {toast.show && (
+                                <div className={`fixed top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[200] flex items-center gap-3 animate-toast ${toast.type === 'success' ? 'bg-[#00D2D3] text-[#161B26]' : 'bg-red-500 text-white'}`}>
+                                    <Icon name={toast.type === 'success' ? "CheckCircle" : "AlertCircle"} size={20} />
+                                    <span className="font-bold text-sm tracking-wide uppercase">{toast.message}</span>
+                                </div>
+                            )}
 
-                        {/* Modal Historial de Modificaciones */}
-                        {showLogs && (
-                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#161B26]/80 backdrop-blur-sm">
-                                <div className="bg-[#1A202E] border border-[#2A3441] w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
-                                    <div className="p-5 border-b border-[#2A3441] flex justify-between items-center bg-[#1A202E] rounded-t-2xl">
-                                        <div className="flex items-center gap-3"><Icon name="History" className="text-[#00D2D3]" size={20} /><h2 className="font-bold uppercase text-sm tracking-widest">Auditoría {selectedYear}</h2></div>
-                                        <button onClick={() => setShowLogs(false)} className="text-[#A5B1C2] hover:text-white"><Icon name="X" size={20} /></button>
-                                    </div>
-                                    <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
-                                        {logs.length === 0 ? <p className="text-center text-[#A5B1C2] text-sm py-4">No hay registros de modificaciones para este año.</p> : 
-                                            <div className="space-y-4">
-                                                {logs.map(log => (
-                                                    <div key={log.id} className="border-l-2 border-[#00D2D3] pl-4 py-1">
-                                                        <p className="text-xs text-[#A5B1C2]">{log.timestamp ? log.timestamp.toDate().toLocaleString() : 'Justo ahora'}</p>
-                                                        <p className="text-sm font-medium text-white">{log.action} - {log.service === 'GLOBAL' ? 'Global' : 'Servicio Específico'}</p>
-                                                        <p className="text-[10px] text-[#A5B1C2] mt-1 font-mono uppercase">Por: {log.user}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        }
-                                    </div>
-                                    <div className="p-4 bg-[#161B26]/50 border-t border-[#2A3441] flex justify-end rounded-b-2xl">
-                                        <button onClick={() => setShowLogs(false)} className="text-xs font-bold text-[#A5B1C2] hover:text-white px-6 py-2 uppercase tracking-widest text-white">Cerrar</button>
+                            {/* Modal Historial de Modificaciones */}
+                            {showLogs && (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#161B26]/80 backdrop-blur-sm">
+                                    <div className="bg-[#1A202E] border border-[#2A3441] w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
+                                        <div className="p-5 border-b border-[#2A3441] flex justify-between items-center bg-[#1A202E] rounded-t-2xl">
+                                            <div className="flex items-center gap-3"><Icon name="History" className="text-[#00D2D3]" size={20} /><h2 className="font-bold uppercase text-sm tracking-widest">Auditoría {selectedYear}</h2></div>
+                                            <button onClick={() => setShowLogs(false)} className="text-[#A5B1C2] hover:text-white"><Icon name="X" size={20} /></button>
+                                        </div>
+                                        <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
+                                            {logs.length === 0 ? <p className="text-center text-[#A5B1C2] text-sm py-4">No hay registros de modificaciones para este año.</p> : 
+                                                <div className="space-y-4">
+                                                    {logs.map(log => (
+                                                        <div key={log.id} className="border-l-2 border-[#00D2D3] pl-4 py-1">
+                                                            <p className="text-xs text-[#A5B1C2]">{log.timestamp ? log.timestamp.toDate().toLocaleString() : 'Justo ahora'}</p>
+                                                            <p className="text-sm font-medium text-white">{log.action} - {log.service === 'GLOBAL' ? 'Global' : 'Servicio Específico'}</p>
+                                                            <p className="text-[10px] text-[#A5B1C2] mt-1 font-mono uppercase">Por: {log.user}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            }
+                                        </div>
+                                        <div className="p-4 bg-[#161B26]/50 border-t border-[#2A3441] flex justify-end rounded-b-2xl">
+                                            <button onClick={() => setShowLogs(false)} className="text-xs font-bold text-[#A5B1C2] hover:text-white px-6 py-2 uppercase tracking-widest text-white">Cerrar</button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        <div className="max-w-7xl mx-auto space-y-8">
-                            
-                            {/* PANEL GIGANTE DE ERROR DE CONEXIÓN */}
-                            {dbStatus === 'error' && (
-                                <div className="bg-red-500/20 border-2 border-red-500 text-white p-6 rounded-xl shadow-2xl">
-                                    <div className="flex items-center gap-4 mb-4">
-                                        <Icon name="AlertCircle" size={32} className="text-red-400" />
-                                        <h2 className="text-xl md:text-2xl font-bold text-red-400 uppercase tracking-wider">Error de Conexión a Base de Datos</h2>
-                                    </div>
-                                    
-                                    {dbErrorType === 'not-created' && (
-                                        <div className="space-y-4">
-                                            <p className="text-lg font-medium">PASO 1: AÚN NO HAS ACTIVADO FIRESTORE.</p>
-                                            <p className="text-base text-red-200">El error de la consola indica que Firebase bloqueó la conexión porque la API de Firestore no está habilitada en tu proyecto <b>cesfam-dalcahue-dashboard</b>.</p>
-                                            <a 
-                                                href="https://console.firebase.google.com/project/cesfam-dalcahue-dashboard/firestore" 
-                                                target="_blank" 
-                                                rel="noreferrer" 
-                                                className="inline-flex items-center gap-2 bg-[#00D2D3] text-[#161B26] font-bold px-6 py-3 rounded-lg hover:bg-white transition-colors"
-                                            >
-                                                <Icon name="Target" size={18} />
-                                                Activar Firestore en la Consola
-                                            </a>
-                                            <p className="text-sm italic opacity-80 mt-2">Nota: Si acabas de activarla, espera 2 o 3 minutos a que Google aplique los cambios y recarga esta página.</p>
+                            <div className="max-w-7xl mx-auto space-y-8">
+                                
+                                {/* PANEL GIGANTE DE ERROR DE CONEXIÓN */}
+                                {dbStatus === 'error' && (
+                                    <div className="bg-red-500/20 border-2 border-red-500 text-white p-6 rounded-xl shadow-2xl">
+                                        <div className="flex items-center gap-4 mb-4">
+                                            <Icon name="AlertCircle" size={32} className="text-red-400" />
+                                            <h2 className="text-xl md:text-2xl font-bold text-red-400 uppercase tracking-wider">Error de Conexión a Base de Datos</h2>
                                         </div>
-                                    )}
-
-                                    {dbErrorType === 'permissions' && (
-                                        <div>
-                                            <p className="text-base font-medium mb-3">La base de datos rechazó el acceso (seguramente al intentar guardar). Ve a tu consola de Firebase &gt; Firestore Database &gt; <b className="text-[#00D2D3]">Reglas</b> y pega este código exacto:</p>
-                                            <div className="relative bg-[#0F141E] p-5 rounded-lg border border-red-500/30">
-                                                <button 
-                                                    onClick={handleCopyRules} 
-                                                    className={`absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 ${rulesCopied ? 'bg-green-500 text-white' : 'bg-[#00D2D3] text-[#161B26] hover:bg-white'}`}
+                                        
+                                        {dbErrorType === 'not-created' && (
+                                            <div className="space-y-4">
+                                                <p className="text-lg font-medium">PASO 1: AÚN NO HAS ACTIVADO FIRESTORE.</p>
+                                                <p className="text-base text-red-200">El error de la consola indica que Firebase bloqueó la conexión porque la API de Firestore no está habilitada en tu proyecto <b>cesfam-dalcahue-dashboard</b>.</p>
+                                                <a 
+                                                    href="https://console.firebase.google.com/project/cesfam-dalcahue-dashboard/firestore" 
+                                                    target="_blank" 
+                                                    rel="noreferrer" 
+                                                    className="inline-flex items-center gap-2 bg-[#00D2D3] text-[#161B26] font-bold px-6 py-3 rounded-lg hover:bg-white transition-colors"
                                                 >
-                                                    <Icon name={rulesCopied ? "CheckCircle" : "Copy"} size={14} />
-                                                    {rulesCopied ? "¡Copiado Perfecto!" : "Copiar Reglas"}
-                                                </button>
-                                                <pre className="text-green-300 font-mono text-sm overflow-x-auto whitespace-pre">
+                                                    <Icon name="Target" size={18} />
+                                                    Activar Firestore en la Consola
+                                                </a>
+                                                <p className="text-sm italic opacity-80 mt-2">Nota: Si acabas de activarla, espera 2 o 3 minutos a que Google aplique los cambios y recarga esta página.</p>
+                                            </div>
+                                        )}
+
+                                        {dbErrorType === 'permissions' && (
+                                            <div>
+                                                <p className="text-base font-medium mb-3">La base de datos rechazó el acceso (seguramente al intentar guardar). Ve a tu consola de Firebase &gt; Firestore Database &gt; <b className="text-[#00D2D3]">Reglas</b> y pega este código exacto:</p>
+                                                <div className="relative bg-[#0F141E] p-5 rounded-lg border border-red-500/30">
+                                                    <button 
+                                                        onClick={handleCopyRules} 
+                                                        className={`absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 ${rulesCopied ? 'bg-green-500 text-white' : 'bg-[#00D2D3] text-[#161B26] hover:bg-white'}`}
+                                                    >
+                                                        <Icon name={rulesCopied ? "CheckCircle" : "Copy"} size={14} />
+                                                        {rulesCopied ? "¡Copiado Perfecto!" : "Copiar Reglas"}
+                                                    </button>
+                                                    <pre className="text-green-300 font-mono text-sm overflow-x-auto whitespace-pre">
 {`rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -590,282 +631,296 @@ service cloud.firestore {
     }
   }
 }`}
-                                                </pre>
+                                                    </pre>
+                                                </div>
                                             </div>
+                                        )}
+
+                                        {dbErrorType === 'unknown' && (
+                                            <p className="text-lg font-medium">Ocurrió un error desconocido al intentar conectar o guardar los datos. Revisa la consola de tu navegador (F12) para más detalles.</p>
+                                        )}
+
+                                        {dbErrorType === 'auth' && (
+                                            <p className="text-lg font-medium">Autenticación bloqueada: Ve a tu consola de Firebase &gt; Authentication &gt; Sign-in method y habilita el método <b className="text-[#00D2D3]">Anónimo</b>.</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#2A3441] pb-6">
+                                    <div className="flex items-center gap-3 text-white">
+                                        <div className="p-2 bg-[#00D2D3]/10 rounded-lg border border-[#00D2D3]/20 backdrop-blur-sm"><Icon name="Activity" className="text-[#00D2D3]" size={24} /></div>
+                                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Control de programas ID y Resolutividad</h1>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                                        {/* BOTÓN DE GUARDAR CAMBIOS */}
+                                        {hasChanges && (
+                                            <button 
+                                                onClick={handleSave} 
+                                                disabled={syncStatus === 'syncing'} 
+                                                className="bg-[#00D2D3] text-[#161B26] font-bold px-4 py-2.5 rounded-lg shadow-[0_0_15px_rgba(0,210,211,0.4)] hover:bg-white hover:shadow-[0_0_20px_rgba(255,255,255,0.6)] transition-all active:scale-95 flex items-center gap-2 text-sm uppercase tracking-wider"
+                                            >
+                                                {syncStatus === 'syncing' ? <Icon name="RefreshCw" size={18} className="animate-spin" /> : <Icon name="Save" size={18} />}
+                                                {syncStatus === 'syncing' ? 'Guardando...' : 'Guardar Cambios'}
+                                            </button>
+                                        )}
+                                        
+                                        {/* Controles Avanzados (Exportación, Historial y Año) */}
+                                        <div className="flex bg-[#1A202E]/80 backdrop-blur-md border border-[#2A3441] rounded-lg p-1.5 gap-1 items-center">
+                                            <button onClick={exportToExcel} title="Exportar a Excel" className="p-1.5 text-green-400 hover:bg-green-400/20 rounded-md transition-colors"><Icon name="FileText" size={18} /></button>
+                                            <button onClick={exportToPDF} title="Exportar a PDF" className="p-1.5 text-red-400 hover:bg-red-400/20 rounded-md transition-colors"><Icon name="Download" size={18} /></button>
+                                            <div className="w-px h-5 bg-[#2A3441] mx-1"></div>
+                                            <button onClick={() => setShowLogs(true)} title="Ver Historial" className="p-1.5 text-[#00D2D3] hover:bg-[#00D2D3]/20 rounded-md transition-colors"><Icon name="History" size={18} /></button>
+                                            <div className="w-px h-5 bg-[#2A3441] mx-1"></div>
+                                            <select className="bg-transparent border-none outline-none text-white font-bold text-sm cursor-pointer pr-2" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
+                                                <option value="2024" className="bg-[#1A202E]">Año 2024</option>
+                                                <option value="2025" className="bg-[#1A202E]">Año 2025</option>
+                                                <option value="2026" className="bg-[#1A202E]">Año 2026</option>
+                                                <option value="2027" className="bg-[#1A202E]">Año 2027</option>
+                                            </select>
                                         </div>
-                                    )}
 
-                                    {dbErrorType === 'unknown' && (
-                                        <p className="text-lg font-medium">Ocurrió un error desconocido al intentar conectar o guardar los datos. Revisa la consola de tu navegador (F12) para más detalles.</p>
-                                    )}
-
-                                    {dbErrorType === 'auth' && (
-                                        <p className="text-lg font-medium">Autenticación bloqueada: Ve a tu consola de Firebase &gt; Authentication &gt; Sign-in method y habilita el método <b className="text-[#00D2D3]">Anónimo</b>.</p>
-                                    )}
-                                </div>
-                            )}
-
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#2A3441] pb-6">
-                                <div className="flex items-center gap-3 text-white">
-                                    <div className="p-2 bg-[#00D2D3]/10 rounded-lg border border-[#00D2D3]/20"><Icon name="Activity" className="text-[#00D2D3]" size={24} /></div>
-                                    <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Control de programas ID y Resolutividad</h1>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                                    {/* BOTÓN DE GUARDAR CAMBIOS */}
-                                    {hasChanges && (
-                                        <button 
-                                            onClick={handleSave} 
-                                            disabled={syncStatus === 'syncing'} 
-                                            className="bg-[#00D2D3] text-[#161B26] font-bold px-4 py-2.5 rounded-lg shadow-[0_0_15px_rgba(0,210,211,0.4)] hover:bg-white hover:shadow-[0_0_20px_rgba(255,255,255,0.6)] transition-all active:scale-95 flex items-center gap-2 text-sm uppercase tracking-wider"
-                                        >
-                                            {syncStatus === 'syncing' ? <Icon name="RefreshCw" size={18} className="animate-spin" /> : <Icon name="Save" size={18} />}
-                                            {syncStatus === 'syncing' ? 'Guardando...' : 'Guardar Cambios'}
-                                        </button>
-                                    )}
-                                    
-                                    {/* Controles Avanzados (Exportación, Historial y Año) */}
-                                    <div className="flex bg-[#1A202E] border border-[#2A3441] rounded-lg p-1.5 gap-1 items-center">
-                                        <button onClick={exportToExcel} title="Exportar a Excel" className="p-1.5 text-green-400 hover:bg-green-400/20 rounded-md transition-colors"><Icon name="FileText" size={18} /></button>
-                                        <button onClick={exportToPDF} title="Exportar a PDF" className="p-1.5 text-red-400 hover:bg-red-400/20 rounded-md transition-colors"><Icon name="Download" size={18} /></button>
-                                        <div className="w-px h-5 bg-[#2A3441] mx-1"></div>
-                                        <button onClick={() => setShowLogs(true)} title="Ver Historial" className="p-1.5 text-[#00D2D3] hover:bg-[#00D2D3]/20 rounded-md transition-colors"><Icon name="History" size={18} /></button>
-                                        <div className="w-px h-5 bg-[#2A3441] mx-1"></div>
-                                        <select className="bg-transparent border-none outline-none text-white font-bold text-sm cursor-pointer pr-2" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-                                            <option value="2024" className="bg-[#1A202E]">Año 2024</option>
-                                            <option value="2025" className="bg-[#1A202E]">Año 2025</option>
-                                            <option value="2026" className="bg-[#1A202E]">Año 2026</option>
-                                            <option value="2027" className="bg-[#1A202E]">Año 2027</option>
+                                        <select className="bg-[#1A202E]/80 backdrop-blur-md border border-[#2A3441] px-4 py-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-[#00D2D3] cursor-pointer min-w-[220px] text-white" value={selectedService} onChange={(e) => setSelectedService(e.target.value)}>
+                                            <option value="GLOBAL">Vista Global (Todos)</option>
+                                            {processedData.map(a => <option key={a.id} value={a.id}>{a.actividad}</option>)}
                                         </select>
                                     </div>
-
-                                    <select className="bg-[#1A202E] border border-[#2A3441] px-4 py-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-[#00D2D3] cursor-pointer min-w-[220px] text-white" value={selectedService} onChange={(e) => setSelectedService(e.target.value)}>
-                                        <option value="GLOBAL">Vista Global (Todos)</option>
-                                        {processedData.map(a => <option key={a.id} value={a.id}>{a.actividad}</option>)}
-                                    </select>
                                 </div>
-                            </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="bg-gradient-to-br from-[#BE2EDD] to-[#E056FD] p-6 rounded-2xl shadow-lg relative overflow-hidden border border-white/10 group">
-                                    <Icon name="Target" className="absolute -right-4 -top-4 opacity-20 group-hover:scale-110 transition-transform" size={100} />
-                                    <p className="text-white/80 text-xs font-bold uppercase tracking-widest">Meta Anual {selectedYear}</p>
-                                    <p className="text-4xl font-bold mt-2 text-white">{kpis.meta.toLocaleString('es-CL')}</p>
-                                </div>
-                                <div className="bg-[#1A202E] border border-[#2A3441] p-6 rounded-2xl flex flex-col justify-between shadow-inner">
-                                    <div className="flex justify-between items-center text-[#A5B1C2]">
-                                        <p className="text-xs font-bold uppercase tracking-widest">Total Realizado</p>
-                                        <Icon name="Activity" size={20} className="text-[#00D2D3]" />
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-gradient-to-br from-[#BE2EDD]/90 to-[#E056FD]/90 backdrop-blur-sm p-6 rounded-2xl shadow-lg relative overflow-hidden border border-white/10 group">
+                                        <Icon name="Target" className="absolute -right-4 -top-4 opacity-20 group-hover:scale-110 transition-transform" size={100} />
+                                        <p className="text-white/80 text-xs font-bold uppercase tracking-widest">Meta Anual {selectedYear}</p>
+                                        <p className="text-4xl font-bold mt-2 text-white">{kpis.meta.toLocaleString('es-CL')}</p>
                                     </div>
-                                    <p className="text-4xl font-bold mt-4 text-white">{kpis.realizado.toLocaleString('es-CL')}</p>
+                                    <div className="bg-[#1A202E]/80 backdrop-blur-md border border-[#2A3441] p-6 rounded-2xl flex flex-col justify-between shadow-inner">
+                                        <div className="flex justify-between items-center text-[#A5B1C2]">
+                                            <p className="text-xs font-bold uppercase tracking-widest">Total Realizado</p>
+                                            <Icon name="Activity" size={20} className="text-[#00D2D3]" />
+                                        </div>
+                                        <p className="text-4xl font-bold mt-4 text-white">{kpis.realizado.toLocaleString('es-CL')}</p>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-[#0097e6]/90 to-[#00D2D3]/90 backdrop-blur-sm p-6 rounded-2xl shadow-lg relative overflow-hidden border border-white/10 group">
+                                        <Icon name="TrendingUp" className="absolute -right-4 -top-4 opacity-20 group-hover:scale-110 transition-transform" size={100} />
+                                        <p className="text-white/80 text-xs font-bold uppercase tracking-widest">% Avance Global</p>
+                                        <p className="text-4xl font-bold mt-2 text-white">{kpis.avance}%</p>
+                                    </div>
                                 </div>
-                                <div className="bg-gradient-to-br from-[#0097e6] to-[#00D2D3] p-6 rounded-2xl shadow-lg relative overflow-hidden border border-white/10 group">
-                                    <Icon name="TrendingUp" className="absolute -right-4 -top-4 opacity-20 group-hover:scale-110 transition-transform" size={100} />
-                                    <p className="text-white/80 text-xs font-bold uppercase tracking-widest">% Avance Global</p>
-                                    <p className="text-4xl font-bold mt-2 text-white">{kpis.avance}%</p>
-                                </div>
-                            </div>
 
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                                <div className="bg-[#1A202E] p-6 rounded-2xl border border-[#2A3441] shadow-xl">
-                                    <h2 className="text-sm font-bold uppercase text-[#A5B1C2] mb-6 tracking-widest">Actividad Mensual</h2>
-                                    <div className="relative h-[240px] flex text-[10px] text-[#A5B1C2]">
-                                        <div className="flex flex-col justify-between items-end pr-4 pb-8 min-w-[35px] font-mono">{chartTicks.map((t, i) => <span key={i}>{t}</span>)}</div>
-                                        <div className="relative flex-1 border-b border-[#2A3441] pb-8 flex items-end px-2">
-                                            <div className="absolute inset-0 pb-8 flex flex-col justify-between">{chartTicks.map((_, i) => <div key={i} className="w-full border-t border-[#2A3441]/40"></div>)}</div>
-                                            <div className="relative z-10 w-full h-full flex items-end justify-between">
-                                                {monthlyTotals.map((total, idx) => (
-                                                    <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end px-1 relative">
-                                                        <div className="w-full max-w-[24px] bg-[#00D2D3] rounded-t-sm shadow-[0_0_10px_#00D2D344] group-hover:bg-[#22F6F7] transition-all" style={{ height: `${chartMax > 0 ? (total/chartMax)*100 : 0}%` }}></div>
-                                                        <span className="absolute -bottom-6 text-[9px] font-bold uppercase">{MONTHS[idx].key}</span>
-                                                    </div>
-                                                ))}
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                                    <div className="bg-[#1A202E]/80 backdrop-blur-md p-6 rounded-2xl border border-[#2A3441] shadow-xl">
+                                        <h2 className="text-sm font-bold uppercase text-[#A5B1C2] mb-6 tracking-widest">Actividad Mensual</h2>
+                                        <div className="relative h-[240px] flex text-[10px] text-[#A5B1C2]">
+                                            <div className="flex flex-col justify-between items-end pr-4 pb-8 min-w-[35px] font-mono">{chartTicks.map((t, i) => <span key={i}>{t}</span>)}</div>
+                                            <div className="relative flex-1 border-b border-[#2A3441] pb-8 flex items-end px-2">
+                                                <div className="absolute inset-0 pb-8 flex flex-col justify-between">{chartTicks.map((_, i) => <div key={i} className="w-full border-t border-[#2A3441]/40"></div>)}</div>
+                                                <div className="relative z-10 w-full h-full flex items-end justify-between">
+                                                    {monthlyTotals.map((total, idx) => (
+                                                        <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end px-1 relative">
+                                                            <div className="w-full max-w-[24px] bg-[#00D2D3] rounded-t-sm shadow-[0_0_10px_#00D2D344] group-hover:bg-[#22F6F7] transition-all" style={{ height: `${chartMax > 0 ? (total/chartMax)*100 : 0}%` }}></div>
+                                                            <span className="absolute -bottom-6 text-[9px] font-bold uppercase">{MONTHS[idx].key}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-[#1A202E]/80 backdrop-blur-md p-6 rounded-2xl border border-[#2A3441] shadow-xl overflow-y-auto max-h-[310px] custom-scrollbar">
+                                        <h2 className="text-sm font-bold uppercase text-[#A5B1C2] mb-6 tracking-widest">Estado y Pronóstico de Metas</h2>
+                                        <div className="space-y-6">
+                                            {processedData.map(act => {
+                                                const hasMeta = act.meta > 0;
+                                                const isComp = hasMeta && Number(act.avance) >= 100;
+                                                const color = isComp ? '#E056FD' : (hasMeta ? '#00D2D3' : '#A5B1C2');
+                                                
+                                                // Forecasting UI Elements
+                                                let alertIcon = null;
+                                                let forecastText = "";
+                                                if (hasMeta && !isComp) {
+                                                    if (act.forecastAlert === 'bad') {
+                                                        alertIcon = <Icon name="TrendingDown" size={14} className="text-red-400" />;
+                                                        forecastText = `Proyección fin de año: ${act.projected} ⚠️ Riesgo`;
+                                                    } else if (act.forecastAlert === 'good') {
+                                                        alertIcon = <Icon name="TrendingUp" size={14} className="text-[#00D2D3]" />;
+                                                        forecastText = `Proyección fin de año: ${act.projected} ✨ Óptimo`;
+                                                    } else {
+                                                        alertIcon = <Icon name="Activity" size={14} className="text-yellow-400" />;
+                                                        forecastText = `Proyección fin de año: ${act.projected} - Estable`;
+                                                    }
+                                                }
+
+                                                return (
+                                                    <div key={act.id} className="space-y-2 group">
+                                                        <div className="flex justify-between items-center text-[11px]">
+                                                            <div className="flex flex-col gap-0.5 pr-4">
+                                                                <div className="flex items-center gap-2 text-[#A5B1C2]">
+                                                                    <span style={{ color }}><Icon name={getIconNameForActivity(act.actividad)} size={14} /></span>
+                                                                    <span className="truncate uppercase font-medium">{act.actividad}</span>
+                                                                    {alertIcon}
+                                                                </div>
+                                                                {hasMeta && !isComp && (
+                                                                    <span className="text-[9px] text-[#A5B1C2] opacity-80 pl-6">
+                                                                        {forecastText}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <span className="font-bold" style={{ color }}>{hasMeta ? `${act.avance}%` : `${act.total} Realizados`}</span>
+                                                        </div>
+                                                        <div className="relative h-1.5 bg-[#161B26] rounded-full">
+                                                            <div className="h-full rounded-full transition-all duration-1000 relative" style={{ width: hasMeta ? `${Math.min(Number(act.avance), 100)}%` : '100%', backgroundColor: color, boxShadow: hasMeta ? `0 0 10px ${color}66` : 'none', opacity: hasMeta ? 1 : 0.4 }}>
+                                                                {hasMeta && <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-[#1A202E]" style={{ backgroundColor: color }}></div>}
+                                                            </div>
+                                                            {hasMeta && <div className="absolute left-1/2 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-[#BE2EDD] z-10"></div>}
+                                                            {hasMeta && <div className="absolute left-1/2 -translate-x-1/2 top-4 text-[9px] font-bold text-[#BE2EDD]">{(act.meta/2).toLocaleString('es-CL')}</div>}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="bg-[#1A202E] p-6 rounded-2xl border border-[#2A3441] shadow-xl overflow-y-auto max-h-[310px] custom-scrollbar">
-                                    <h2 className="text-sm font-bold uppercase text-[#A5B1C2] mb-6 tracking-widest">Estado y Pronóstico de Metas</h2>
-                                    <div className="space-y-6">
-                                        {processedData.map(act => {
-                                            const hasMeta = act.meta > 0;
-                                            const isComp = hasMeta && Number(act.avance) >= 100;
-                                            const color = isComp ? '#E056FD' : (hasMeta ? '#00D2D3' : '#A5B1C2');
-                                            
-                                            // Forecasting UI Elements
-                                            let alertIcon = null;
-                                            let forecastText = "";
-                                            if (hasMeta && !isComp) {
-                                                if (act.forecastAlert === 'bad') {
-                                                    alertIcon = <Icon name="TrendingDown" size={14} className="text-red-400" />;
-                                                    forecastText = `Proyección fin de año: ${act.projected} ⚠️ Riesgo`;
-                                                } else if (act.forecastAlert === 'good') {
-                                                    alertIcon = <Icon name="TrendingUp" size={14} className="text-[#00D2D3]" />;
-                                                    forecastText = `Proyección fin de año: ${act.projected} ✨ Óptimo`;
-                                                } else {
-                                                    alertIcon = <Icon name="Activity" size={14} className="text-yellow-400" />;
-                                                    forecastText = `Proyección fin de año: ${act.projected} - Estable`;
-                                                }
-                                            }
-
-                                            return (
-                                                <div key={act.id} className="space-y-2 group">
-                                                    <div className="flex justify-between items-center text-[11px]">
-                                                        <div className="flex flex-col gap-0.5 pr-4">
-                                                            <div className="flex items-center gap-2 text-[#A5B1C2]">
-                                                                <span style={{ color }}><Icon name={getIconNameForActivity(act.actividad)} size={14} /></span>
-                                                                <span className="truncate uppercase font-medium">{act.actividad}</span>
-                                                                {alertIcon}
-                                                            </div>
-                                                            {hasMeta && !isComp && (
-                                                                <span className="text-[9px] text-[#A5B1C2] opacity-80 pl-6">
-                                                                    {forecastText}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <span className="font-bold" style={{ color }}>{hasMeta ? `${act.avance}%` : `${act.total} Realizados`}</span>
-                                                    </div>
-                                                    <div className="relative h-1.5 bg-[#161B26] rounded-full">
-                                                        <div className="h-full rounded-full transition-all duration-1000 relative" style={{ width: hasMeta ? `${Math.min(Number(act.avance), 100)}%` : '100%', backgroundColor: color, boxShadow: hasMeta ? `0 0 10px ${color}66` : 'none', opacity: hasMeta ? 1 : 0.4 }}>
-                                                            {hasMeta && <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-[#1A202E]" style={{ backgroundColor: color }}></div>}
-                                                        </div>
-                                                        {hasMeta && <div className="absolute left-1/2 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-[#BE2EDD] z-10"></div>}
-                                                        {hasMeta && <div className="absolute left-1/2 -translate-x-1/2 top-4 text-[9px] font-bold text-[#BE2EDD]">{(act.meta/2).toLocaleString('es-CL')}</div>}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                <div className="bg-[#1A202E]/90 backdrop-blur-md rounded-2xl border border-[#2A3441] shadow-2xl overflow-hidden">
+                                    <div className="p-4 bg-[#161B26]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#A5B1C2]">
+                                        <div className="flex items-center gap-2">
+                                            <Icon name={dbStatus === 'connected' ? "Activity" : "AlertCircle"} size={14} className={dbStatus === 'connected' ? "text-[#00D2D3]" : "text-red-400"} />
+                                            {dbStatus === 'connected' ? "Conexión estable con Firestore." : "Desconectado. Los datos no se guardarán en la nube."}
+                                        </div>
+                                        
+                                        {/* Indicador Visual de Estado de Guardado en tabla */}
+                                        <div className="flex items-center gap-2 font-bold bg-[#161B26] px-3 py-1.5 rounded-full border border-[#2A3441]">
+                                            {syncStatus === 'unsaved' && <><Icon name="AlertCircle" size={14} className="text-yellow-400" /><span className="text-yellow-400">Cambios locales</span></>}
+                                            {syncStatus === 'syncing' && <><Icon name="RefreshCw" size={14} className="animate-spin text-[#00D2D3]" /><span className="text-[#00D2D3]">Guardando...</span></>}
+                                            {syncStatus === 'synced' && <><Icon name="CheckCircle" size={14} className="text-[#A5B1C2]" /><span className="text-[#A5B1C2]">Todo Sincronizado</span></>}
+                                            {syncStatus === 'error' && <><Icon name="AlertCircle" size={14} className="text-red-400" /><span className="text-red-400">Error</span></>}
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-[#1A202E] rounded-2xl border border-[#2A3441] shadow-2xl overflow-hidden">
-                                <div className="p-4 bg-[#161B26]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#A5B1C2]">
-                                    <div className="flex items-center gap-2">
-                                        <Icon name={dbStatus === 'connected' ? "Activity" : "AlertCircle"} size={14} className={dbStatus === 'connected' ? "text-[#00D2D3]" : "text-red-400"} />
-                                        {dbStatus === 'connected' ? "Conexión estable con Firestore." : "Desconectado. Los datos no se guardarán en la nube."}
-                                    </div>
-                                    
-                                    {/* Indicador Visual de Estado de Guardado en tabla */}
-                                    <div className="flex items-center gap-2 font-bold bg-[#161B26] px-3 py-1.5 rounded-full border border-[#2A3441]">
-                                        {syncStatus === 'unsaved' && <><Icon name="AlertCircle" size={14} className="text-yellow-400" /><span className="text-yellow-400">Cambios locales</span></>}
-                                        {syncStatus === 'syncing' && <><Icon name="RefreshCw" size={14} className="animate-spin text-[#00D2D3]" /><span className="text-[#00D2D3]">Guardando...</span></>}
-                                        {syncStatus === 'synced' && <><Icon name="CheckCircle" size={14} className="text-[#A5B1C2]" /><span className="text-[#A5B1C2]">Todo Sincronizado</span></>}
-                                        {syncStatus === 'error' && <><Icon name="AlertCircle" size={14} className="text-red-400" /><span className="text-red-400">Error</span></>}
-                                    </div>
-                                </div>
-                                <div className="overflow-x-auto custom-scrollbar">
-                                    <table className="w-full text-[12px] text-left border-collapse min-w-[1200px]">
-                                        <thead className="bg-[#161B26] text-[#A5B1C2] uppercase font-bold tracking-widest">
-                                            <tr>
-                                                <th className="px-4 py-4 border-r border-[#2A3441] sticky left-0 bg-[#161B26] z-10 text-white">Actividad</th>
-                                                <th className="px-3 py-4 border-r border-[#2A3441] text-right text-[#BE2EDD]">Editar Meta</th>
-                                                <th className="px-3 py-4 border-r border-[#2A3441] text-right text-white">% Avance</th>
-                                                {MONTHS.map((m, i) => (
-                                                    <th key={m.key} className="px-1 py-2 border-r border-[#2A3441] text-center min-w-[50px] text-white">
+                                    <div className="overflow-x-auto custom-scrollbar">
+                                        <table className="w-full text-[12px] text-left border-collapse min-w-[1200px]">
+                                            <thead className="bg-[#161B26] text-[#A5B1C2] uppercase font-bold tracking-widest">
+                                                <tr>
+                                                    <th className="px-4 py-4 border-r border-[#2A3441] sticky left-0 bg-[#161B26] z-10 text-white">Actividad</th>
+                                                    <th className="px-1 py-2 border-r border-[#2A3441] text-center min-w-[60px] text-[#BE2EDD]">
                                                         <div className="flex flex-col items-center justify-center gap-1">
-                                                            <span>{m.label}</span>
+                                                            <span>META</span>
                                                             <button 
-                                                                onClick={() => toggleMonthLock(i)}
-                                                                className={`p-1 rounded transition-colors ${lockedMonths[i] ? 'text-red-400 bg-red-400/10' : 'text-[#A5B1C2] hover:bg-[#2A3441]'}`}
-                                                                title={lockedMonths[i] ? "Desbloquear Mes" : "Bloquear Mes"}
+                                                                onClick={toggleMetaLock}
+                                                                className={`p-1 rounded transition-colors ${lockedMeta ? 'text-red-400 bg-red-400/10' : 'text-[#A5B1C2] hover:bg-[#2A3441]'}`}
+                                                                title={lockedMeta ? "Desbloquear Meta" : "Bloquear Meta"}
                                                             >
-                                                                <Icon name={lockedMonths[i] ? "Lock" : "Unlock"} size={12} />
+                                                                <Icon name={lockedMeta ? "Lock" : "Unlock"} size={12} />
                                                             </button>
                                                         </div>
                                                     </th>
-                                                ))}
-                                                <th className="px-3 py-4 border-r border-[#2A3441] text-right text-white">Total</th>
-                                                <th className="px-3 py-4 text-right text-white">Pdte.</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {processedData.map((row) => (
-                                                <tr key={row.id} className="border-b border-[#2A3441] hover:bg-[#202838] transition-colors group/row">
-                                                    <td className="px-4 py-3 font-semibold text-white border-r border-[#2A3441] sticky left-0 bg-[#1A202E] z-10">{row.actividad}</td>
-                                                    
-                                                    {/* Celda Editable de la Meta */}
-                                                    <td className="p-0 border-r border-[#2A3441] relative group-hover/row:bg-[#161B26]/30">
-                                                        <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none opacity-20">
-                                                            <Icon name="Target" size={12} className="text-[#BE2EDD]" />
-                                                        </div>
-                                                        <input 
-                                                            type="text" 
-                                                            inputMode="numeric"
-                                                            value={row.meta} 
-                                                            onChange={(e) => handleMetaEdit(row.id, e.target.value)} 
-                                                            className="w-full h-11 bg-transparent text-right pr-6 focus:bg-[#161B26] outline-none text-[#BE2EDD] font-bold font-mono transition-colors" 
-                                                        />
-                                                    </td>
-                                                    
-                                                    <td className="px-3 py-3 text-right border-r border-[#2A3441] font-bold font-mono" style={{ color: Number(row.avance) >= 100 ? '#E056FD' : '#00D2D3' }}>{row.avance}%</td>
-                                                    {row.months.map((val, i) => (
-                                                        <td key={i} className={`p-0 border-r border-[#2A3441] transition-colors ${lockedMonths[i] ? 'bg-red-900/10 opacity-70 cursor-not-allowed' : ''}`}>
+                                                    <th className="px-3 py-4 border-r border-[#2A3441] text-right text-white">% Avance</th>
+                                                    {MONTHS.map((m, i) => (
+                                                        <th key={m.key} className="px-1 py-2 border-r border-[#2A3441] text-center min-w-[50px] text-white">
+                                                            <div className="flex flex-col items-center justify-center gap-1">
+                                                                <span>{m.label}</span>
+                                                                <button 
+                                                                    onClick={() => toggleMonthLock(i)}
+                                                                    className={`p-1 rounded transition-colors ${lockedMonths[i] ? 'text-red-400 bg-red-400/10' : 'text-[#A5B1C2] hover:bg-[#2A3441]'}`}
+                                                                    title={lockedMonths[i] ? "Desbloquear Mes" : "Bloquear Mes"}
+                                                                >
+                                                                    <Icon name={lockedMonths[i] ? "Lock" : "Unlock"} size={12} />
+                                                                </button>
+                                                            </div>
+                                                        </th>
+                                                    ))}
+                                                    <th className="px-3 py-4 border-r border-[#2A3441] text-right text-white">Total</th>
+                                                    <th className="px-3 py-4 text-right text-white">Pdte.</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {processedData.map((row) => (
+                                                    <tr key={row.id} className="border-b border-[#2A3441] hover:bg-[#202838] transition-colors group/row">
+                                                        <td className="px-4 py-3 font-semibold text-white border-r border-[#2A3441] sticky left-0 bg-[#1A202E] z-10">{row.actividad}</td>
+                                                        
+                                                        {/* Celda Editable de la Meta */}
+                                                        <td className={`p-0 border-r border-[#2A3441] relative transition-colors ${lockedMeta ? 'bg-red-900/10 opacity-70 cursor-not-allowed' : 'group-hover/row:bg-[#161B26]/30'}`}>
+                                                            <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none opacity-20">
+                                                                <Icon name="Target" size={12} className="text-[#BE2EDD]" />
+                                                            </div>
                                                             <input 
                                                                 type="text" 
                                                                 inputMode="numeric"
-                                                                value={val} 
-                                                                onChange={(e) => handleMonthEdit(row.id, i, e.target.value)} 
-                                                                placeholder="-" 
-                                                                className={`w-full h-10 bg-transparent text-center focus:bg-[#161B26] outline-none text-white placeholder-[#2A3441] transition-colors ${lockedMonths[i] ? 'cursor-not-allowed' : ''}`} 
-                                                                disabled={lockedMonths[i] || (dbStatus === 'error' && !hasChanges)} 
-                                                                title={lockedMonths[i] ? "Mes bloqueado" : ""}
+                                                                value={row.meta} 
+                                                                onChange={(e) => handleMetaEdit(row.id, e.target.value)} 
+                                                                className={`w-full h-11 bg-transparent text-right pr-6 focus:bg-[#161B26] outline-none text-[#BE2EDD] font-bold font-mono transition-colors ${lockedMeta ? 'cursor-not-allowed' : ''}`} 
+                                                                disabled={lockedMeta || (dbStatus === 'error' && !hasChanges)}
+                                                                title={lockedMeta ? "Meta bloqueada" : ""}
                                                             />
                                                         </td>
-                                                    ))}
-                                                    <td className="px-3 py-3 text-right border-r border-[#2A3441] font-bold bg-[#161B26]/30 font-mono text-white">{row.total}</td>
-                                                    <td className="px-3 py-3 text-right font-bold text-[#A5B1C2] bg-[#161B26]/30 font-mono">{row.pendiente}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                                        
+                                                        <td className="px-3 py-3 text-right border-r border-[#2A3441] font-bold font-mono" style={{ color: Number(row.avance) >= 100 ? '#E056FD' : '#00D2D3' }}>{row.avance}%</td>
+                                                        {row.months.map((val, i) => (
+                                                            <td key={i} className={`p-0 border-r border-[#2A3441] transition-colors ${lockedMonths[i] ? 'bg-red-900/10 opacity-70 cursor-not-allowed' : ''}`}>
+                                                                <input 
+                                                                    type="text" 
+                                                                    inputMode="numeric"
+                                                                    value={val} 
+                                                                    onChange={(e) => handleMonthEdit(row.id, i, e.target.value)} 
+                                                                    placeholder="-" 
+                                                                    className={`w-full h-10 bg-transparent text-center focus:bg-[#161B26] outline-none text-white placeholder-[#2A3441] transition-colors ${lockedMonths[i] ? 'cursor-not-allowed' : ''}`} 
+                                                                    disabled={lockedMonths[i] || (dbStatus === 'error' && !hasChanges)} 
+                                                                    title={lockedMonths[i] ? "Mes bloqueado" : ""}
+                                                                />
+                                                            </td>
+                                                        ))}
+                                                        <td className="px-3 py-3 text-right border-r border-[#2A3441] font-bold bg-[#161B26]/30 font-mono text-white">{row.total}</td>
+                                                        <td className="px-3 py-3 text-right font-bold text-[#A5B1C2] bg-[#161B26]/30 font-mono">{row.pendiente}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Firma Original (Sin Modificar su Ubicación) */}
+                                <div className="flex items-center gap-4 mt-12 pb-8 border-t border-[#2A3441]/50 pt-6">
+                                    <div className="w-16 h-16 rounded-full border-2 border-[#00D2D3] shadow-lg flex items-center justify-center bg-[#1A202E] overflow-hidden relative shrink-0">
+                                        <img 
+                                            src="Logo con el sononauta .jpg" 
+                                            alt="Logo" 
+                                            className="w-full h-full object-cover z-10" 
+                                            onError={(e) => { e.target.style.display = 'none'; }} 
+                                        />
+                                        <Icon name="Activity" className="text-[#00D2D3] absolute opacity-50 z-0" />
+                                    </div>
+                                    <div className="text-[11px] text-[#A5B1C2] leading-relaxed font-medium">
+                                        <p className="text-[#00D2D3] font-bold text-[14px]">Camilo Torres Arismendi.</p>
+                                        <p>Tecnólogo Médico. | Encargado de Imagenología. | Cesfam Dalcahue.</p>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Firma Original (Sin Modificar su Ubicación) */}
-                            <div className="flex items-center gap-4 mt-12 pb-8 border-t border-[#2A3441]/50 pt-6">
-                                <div className="w-16 h-16 rounded-full border-2 border-[#00D2D3] shadow-lg flex items-center justify-center bg-[#1A202E] overflow-hidden relative shrink-0">
-                                    <img 
-                                        src="Logo con el sononauta .jpg" 
-                                        alt="Logo" 
-                                        className="w-full h-full object-cover z-10" 
-                                        onError={(e) => { e.target.style.display = 'none'; }} 
-                                    />
-                                    <Icon name="Activity" className="text-[#00D2D3] absolute opacity-50 z-0" />
+                            {/* Widget de QR (Estático al final de la página) */}
+                            {showQR && (
+                                <div className="absolute bottom-6 right-6 bg-[#1A202E] border border-[#2A3441] p-3 rounded-2xl shadow-lg flex flex-col items-center gap-2 z-10 group hover:border-[#00D2D3]/50 transition-all">
+                                    <button 
+                                        onClick={() => setShowQR(false)} 
+                                        className="absolute -top-3 -right-3 bg-[#161B26] border border-[#2A3441] rounded-full p-1 text-[#A5B1C2] hover:text-white hover:bg-red-500 hover:border-red-500 transition-all z-10 shadow-md"
+                                        title="Ocultar QR"
+                                    >
+                                        <Icon name="X" size={14} />
+                                    </button>
+                                    <div className="bg-white p-2 rounded-xl shadow-inner min-w-[80px] min-h-[80px] flex items-center justify-center">
+                                        <img 
+                                            src={`https://quickchart.io/qr?text=${encodeURIComponent('https://camibyte.github.io/App-Control-de-programas-ID-y-Resolutividad/')}&dark=161B26&size=100&margin=1`} 
+                                            alt="Código QR para Móvil" 
+                                            className="w-[80px] h-[80px] object-contain" 
+                                            onError={(e) => { e.target.style.display = 'none'; }}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[#00D2D3]">
+                                        <Icon name="Smartphone" size={14} />
+                                        <p className="text-[9px] font-bold uppercase tracking-widest text-center mt-0.5">Móvil</p>
+                                    </div>
                                 </div>
-                                <div className="text-[11px] text-[#A5B1C2] leading-relaxed font-medium">
-                                    <p className="text-[#00D2D3] font-bold text-[14px]">Camilo Torres Arismendi.</p>
-                                    <p>Tecnólogo Médico. | Encargado de Imagenología. | Cesfam Dalcahue.</p>
-                                </div>
-                            </div>
+                            )}
+
                         </div>
-
-                        {/* Widget de QR (Estático al final de la página) */}
-                        {showQR && (
-                            <div className="absolute bottom-6 right-6 bg-[#1A202E] border border-[#2A3441] p-3 rounded-2xl shadow-lg flex flex-col items-center gap-2 z-10 group hover:border-[#00D2D3]/50 transition-all">
-                                <button 
-                                    onClick={() => setShowQR(false)} 
-                                    className="absolute -top-3 -right-3 bg-[#161B26] border border-[#2A3441] rounded-full p-1 text-[#A5B1C2] hover:text-white hover:bg-red-500 hover:border-red-500 transition-all z-10 shadow-md"
-                                    title="Ocultar QR"
-                                >
-                                    <Icon name="X" size={14} />
-                                </button>
-                                <div className="bg-white p-2 rounded-xl shadow-inner min-w-[80px] min-h-[80px] flex items-center justify-center">
-                                    <img 
-                                        src={`https://quickchart.io/qr?text=${encodeURIComponent('https://camibyte.github.io/App-Control-de-programas-ID-y-Resolutividad/')}&dark=161B26&size=100&margin=1`} 
-                                        alt="Código QR para Móvil" 
-                                        className="w-[80px] h-[80px] object-contain" 
-                                        onError={(e) => { e.target.style.display = 'none'; }}
-                                    />
-                                </div>
-                                <div className="flex items-center gap-1.5 text-[#00D2D3]">
-                                    <Icon name="Smartphone" size={14} />
-                                    <p className="text-[9px] font-bold uppercase tracking-widest text-center mt-0.5">Móvil</p>
-                                </div>
-                            </div>
-                        )}
-
-                    </div>
+                    </>
                 );
             }
 
