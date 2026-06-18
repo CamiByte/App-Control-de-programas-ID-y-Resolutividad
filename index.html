@@ -5,22 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard Médico - CESFAM Dalcahue</title>
     
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- React y ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
-    <!-- Babel para compilar JSX en el navegador -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Firebase SDK (Compat para integrarlo fácilmente en un solo archivo) -->
     <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore-compat.js"></script>
 
-    <!-- SheetJS (Excel) y jsPDF (PDF) -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
@@ -213,18 +208,20 @@
                     setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3500);
                 };
 
+                // Texto de reglas formateado de forma segura para evitar fallas de compilación con Babel
+                const cleanRulesText = "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}";
+
                 // Función de copiado limpio
                 const handleCopyRules = () => {
-                    const cleanRules = "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}";
                     try {
                         if (navigator.clipboard && window.isSecureContext) {
-                            navigator.clipboard.writeText(cleanRules).then(() => {
+                            navigator.clipboard.writeText(cleanRulesText).then(() => {
                                 setRulesCopied(true);
                                 setTimeout(() => setRulesCopied(false), 3000);
                             });
                         } else {
                             const textArea = document.createElement("textarea");
-                            textArea.value = cleanRules;
+                            textArea.value = cleanRulesText;
                             textArea.style.position = "fixed";
                             textArea.style.left = "-999999px";
                             document.body.appendChild(textArea);
@@ -623,14 +620,7 @@
                                                         {rulesCopied ? "¡Copiado Perfecto!" : "Copiar Reglas"}
                                                     </button>
                                                     <pre className="text-green-300 font-mono text-sm overflow-x-auto whitespace-pre">
-{`rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
-    }
-  }
-}`}
+                                                        {cleanRulesText}
                                                     </pre>
                                                 </div>
                                             </div>
@@ -876,7 +866,7 @@ service cloud.firestore {
                                     </div>
                                 </div>
 
-                                {/* Firma Original (Sin Modificar su Ubicación) */}
+                                {/* Firma Original */}
                                 <div className="flex items-center gap-4 mt-12 pb-8 border-t border-[#2A3441]/50 pt-6">
                                     <div className="w-16 h-16 rounded-full border-2 border-[#00D2D3] shadow-lg flex items-center justify-center bg-[#1A202E] overflow-hidden relative shrink-0">
                                         <img 
