@@ -150,7 +150,28 @@
     </div>
 
     <script>
-        // --- DATA & ESTADOS MIGRADOS ---
+        const defaultFirebaseConfig = {
+          apiKey: "AIzaSyBCrZ014WwjBAdQXUV2h-u0-myquCuo0cE",
+          authDomain: "cesfam-dalcahue-dashboard.firebaseapp.com",
+          projectId: "cesfam-dalcahue-dashboard",
+          storageBucket: "cesfam-dalcahue-dashboard.firebasestorage.app",
+          messagingSenderId: "496853576287",
+          appId: "1:496853576287:web:340bbeba5781dec34109ea",
+          measurementId: "G-0XMVJ2CLPH"
+        };
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultFirebaseConfig;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : "cesfam-dalcahue-shared-dashboard";
+
+        // Inicializar inmediatamente la App global por defecto
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        // --- DATA E INTERFAZ DEL DASHBOARD ---
         const MONTHS = [
             { key: 'ene', label: 'ENE' }, { key: 'feb', label: 'FEB' }, { key: 'mar', label: 'MAR' },
             { key: 'abr', label: 'ABR' }, { key: 'may', label: 'MAY' }, { key: 'jun', label: 'JUN' },
@@ -180,12 +201,7 @@
             lockedMeta: false
         };
 
-        // Inicializar Firebase de forma nativa
-        const appId = typeof __app_id !== 'undefined' ? __app_id : "cesfam-dalcahue-shared-dashboard";
-        const db = firebase.firestore();
-        const auth = firebase.auth();
-
-        // Autenticar de inmediato de forma anónima
+        // Autenticar de forma anónima en segundo plano
         auth.signInAnonymously().catch(err => console.error("Error Auth:", err));
 
         // Nodos del DOM
@@ -206,6 +222,7 @@
             th.textContent = m.label;
             tableHeaderRow.appendChild(th);
         });
+        
         // Agregar cabeceras finales
         const thTotal = document.createElement('th'); thTotal.className = "px-3 py-4 border-r border-[#2A3441] text-right text-white"; thTotal.textContent = "Total";
         const thPdte = document.createElement('th'); thPdte.className = "px-3 py-4 text-right text-white"; thPdte.textContent = "Pdte.";
@@ -220,7 +237,7 @@
             selectService.appendChild(opt);
         });
 
-        // Escuchar cambios de año y servicio
+        // Escuchar cambios de interfaz
         selectYear.value = state.selectedYear;
         selectYear.addEventListener('change', (e) => {
             state.selectedYear = e.target.value;
@@ -272,7 +289,7 @@
             });
         }
 
-        // --- CÁLCULOS CLÍNICOS Y KPIs ---
+        // --- RENDERIZADO Y CÁLCULOS ---
         function renderDashboard() {
             const actualYear = new Date().getFullYear();
             const evalYear = parseInt(state.selectedYear);
@@ -307,7 +324,7 @@
             document.getElementById('kpi-realizado').textContent = totalRealizado.toLocaleString('es-CL');
             document.getElementById('kpi-avance').textContent = `${porcentajeAvance}%`;
 
-            // Construir Gráfico de Actividad Mensual
+            // Construir Gráfico Mensual
             const monthlyTotals = Array(12).fill(0);
             filtered.forEach(act => {
                 act.months.forEach((v, i) => { monthlyTotals[i] += Number(v) || 0; });
@@ -317,7 +334,7 @@
             // Construir lista de pronósticos
             renderForecasts(processed);
 
-            // Renderizar la gran tabla interactiva
+            // Renderizar la tabla interactiva
             renderTable(processed);
 
             // Estado del Badge de cambios
@@ -407,14 +424,13 @@
                     const val = e.target.value;
                     row.meta = val === '' ? 0 : (parseInt(val) || 0);
                     state.hasChanges = true;
-                    // Sincronizar con el estado global de actividades
                     const idx = state.activities.findIndex(a => a.id === row.id);
                     state.activities[idx].meta = row.meta;
                     renderDashboard();
                 });
                 tr.appendChild(tdMeta);
 
-                // Celda de Porcentaje de avance
+                // Porcentaje avance
                 const tdPct = document.createElement('td');
                 tdPct.className = "px-3 py-3 text-right border-r border-[#2A3441] font-bold font-mono";
                 tdPct.style.color = Number(row.avance) >= 100 ? '#E056FD' : '#00D2D3';
@@ -454,7 +470,7 @@
             });
         }
 
-        // --- MANEJO DE PERSISTENCIA ---
+        // --- GUARDADO ---
         function saveToFirestore() {
             syncStatusBadge.innerHTML = "<span class='text-[#00D2D3]'>Sincronizando datos con Firestore...</span>";
             const collectionName = `activities_${state.selectedYear}`;
@@ -466,7 +482,6 @@
                 batch.set(docRef, act);
             });
 
-            // Registrar log de auditoría clínico
             const logRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`logs_${state.selectedYear}`).doc();
             batch.set(logRef, {
                 timestamp: firebase.firestore.FieldValue.serverTimestamp(),
@@ -480,12 +495,12 @@
                 renderDashboard();
             }).catch(err => {
                 console.error("Error guardando:", err);
-                alert("Error al sincronizar datos. Verifique sus Reglas de Firestore.");
+                alert("Error al sincronizar datos.");
                 renderDashboard();
             });
         }
 
-        // --- REPORTES Y EXPORTACIÓN ---
+        // --- EXPORTACIONES ---
         document.getElementById('btn-excel').addEventListener('click', () => {
             const reportData = state.activities.map(r => {
                 const total = r.months.reduce((sum, v) => sum + (Number(v) || 0), 0);
@@ -528,7 +543,7 @@
             doc.save(`Reporte_Resolutividad_CESFAM_${state.selectedYear}.pdf`);
         });
 
-        // Lanzamiento inicial
+        // Lanzar inicialización
         attachFirestoreListener();
     </script>
 </body>
