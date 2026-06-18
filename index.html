@@ -6,11 +6,6 @@
     <title>Dashboard Médico - CESFAM Dalcahue</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-auth-compat.js"></script>
@@ -28,12 +23,8 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #00D2D3; }
         @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .animate-spin-slow { animation: spin-slow 3s linear infinite; }
-        
-        /* Animación para Notificaciones Toast */
         @keyframes toast-enter { from { transform: translate(-50%, -150%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
         .animate-toast { animation: toast-enter 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-
-        /* Animación para el Fondo Flotante */
         @keyframes blob {
             0% { transform: translate(0px, 0px) scale(1); }
             33% { transform: translate(50px, -50px) scale(1.1); }
@@ -41,887 +32,504 @@
             100% { transform: translate(0px, 0px) scale(1); }
         }
         .animate-blob { animation: blob 15s infinite alternate ease-in-out; }
-        .animation-delay-2000 { animation-delay: 2s; }
-        .animation-delay-4000 { animation-delay: 4s; }
-        
         input:focus { outline: none; }
-        
-        /* Ocultar flechas de los input number */
         input[type="number"]::-webkit-outer-spin-button,
-        input[type="number"]::-webkit-inner-spin-button {
-            -webkit-appearance: none; margin: 0;
-        }
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         input[type="number"] { -moz-appearance: textfield; }
     </style>
+</head>
+<body class="selection:bg-[#00D2D3]/30 overflow-y-auto custom-scrollbar">
+
+    <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-[#161B26]">
+        <div class="absolute top-[-10%] left-[-10%] w-[40rem] h-[40rem] bg-[#00D2D3] rounded-full mix-blend-screen filter blur-[150px] opacity-10 animate-blob"></div>
+        <div class="absolute top-[20%] right-[-10%] w-[40rem] h-[40rem] bg-[#BE2EDD] rounded-full mix-blend-screen filter blur-[150px] opacity-10 animate-blob" style="animation-delay: 2s;"></div>
+        <div class="absolute bottom-[-20%] left-[20%] w-[40rem] h-[40rem] bg-[#0097e6] rounded-full mix-blend-screen filter blur-[150px] opacity-10 animate-blob" style="animation-delay: 4s;"></div>
+    </div>
+
+    <div id="main-content" class="min-h-screen bg-transparent text-white font-sans p-4 md:p-8 relative z-10 hidden">
+        <div class="max-w-7xl mx-auto space-y-8">
+            
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#2A3441] pb-6">
+                <div class="flex items-center gap-3 text-white">
+                    <div class="p-2 bg-[#00D2D3]/10 rounded-lg border border-[#00D2D3]/20">
+                        <svg class="text-[#00D2D3]" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </div>
+                    <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Control de programas ID y Resolutividad</h1>
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <button id="btn-save" class="hidden bg-[#00D2D3] text-[#161B26] font-bold px-4 py-2.5 rounded-lg shadow-[0_0_15px_rgba(0,210,211,0.4)] hover:bg-white transition-all flex items-center gap-2 text-sm uppercase tracking-wider">
+                        Guardar Cambios
+                    </button>
+                    
+                    <div class="flex bg-[#1A202E]/80 backdrop-blur-md border border-[#2A3441] rounded-lg p-1.5 gap-1 items-center">
+                        <button id="btn-excel" title="Exportar a Excel" class="p-1.5 text-green-400 hover:bg-green-400/20 rounded-md"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button>
+                        <button id="btn-pdf" title="Exportar a PDF" class="p-1.5 text-red-400 hover:bg-red-400/20 rounded-md"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                        <div class="w-px h-5 bg-[#2A3441] mx-1"></div>
+                        <select id="select-year" class="bg-transparent border-none outline-none text-white font-bold text-sm cursor-pointer pr-2">
+                            <option value="2024" class="bg-[#1A202E]">Año 2024</option>
+                            <option value="2025" class="bg-[#1A202E]">Año 2025</option>
+                            <option value="2026" class="bg-[#1A202E]">Año 2026</option>
+                            <option value="2027" class="bg-[#1A202E]">Año 2027</option>
+                        </select>
+                    </div>
+
+                    <select id="select-service" class="bg-[#1A202E]/80 backdrop-blur-md border border-[#2A3441] px-4 py-2.5 rounded-lg text-sm outline-none text-white cursor-pointer min-w-[220px]">
+                        <option value="GLOBAL">Vista Global (Todos)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-gradient-to-br from-[#BE2EDD]/90 to-[#E056FD]/90 p-6 rounded-2xl shadow-lg relative overflow-hidden border border-white/10">
+                    <p class="text-white/80 text-xs font-bold uppercase tracking-widest">Meta Anual</p>
+                    <p id="kpi-meta" class="text-4xl font-bold mt-2 text-white">0</p>
+                </div>
+                <div class="bg-[#1A202E]/80 backdrop-blur-md border border-[#2A3441] p-6 rounded-2xl flex flex-col justify-between shadow-inner">
+                    <p class="text-xs font-bold uppercase tracking-widest text-[#A5B1C2]">Total Realizado</p>
+                    <p id="kpi-realizado" class="text-4xl font-bold mt-4 text-white">0</p>
+                </div>
+                <div class="bg-gradient-to-br from-[#0097e6]/90 to-[#00D2D3]/90 p-6 rounded-2xl shadow-lg relative overflow-hidden border border-white/10">
+                    <p class="text-white/80 text-xs font-bold uppercase tracking-widest">Avance Global</p>
+                    <p id="kpi-avance" class="text-4xl font-bold mt-2 text-white">0%</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                <div class="bg-[#1A202E]/80 backdrop-blur-md p-6 rounded-2xl border border-[#2A3441] shadow-xl">
+                    <h2 class="text-sm font-bold uppercase text-[#A5B1C2] mb-6 tracking-widest">Actividad Mensual</h2>
+                    <div class="relative h-[240px] flex text-[10px] text-[#A5B1C2]">
+                        <div id="chart-y-axis" class="flex flex-col justify-between items-end pr-4 pb-8 min-w-[35px] font-mono"></div>
+                        <div class="relative flex-1 border-b border-[#2A3441] pb-8 flex items-end px-2">
+                            <div id="chart-bars-container" class="relative z-10 w-full h-full flex items-end justify-between">
+                                </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-[#1A202E]/80 backdrop-blur-md p-6 rounded-2xl border border-[#2A3441] shadow-xl overflow-y-auto max-h-[310px] custom-scrollbar">
+                    <h2 class="text-sm font-bold uppercase text-[#A5B1C2] mb-6 tracking-widest">Estado y Pronóstico de Metas</h2>
+                    <div id="forecast-list" class="space-y-6"></div>
+                </div>
+            </div>
+
+            <div class="bg-[#1A202E]/90 backdrop-blur-md rounded-2xl border border-[#2A3441] shadow-2xl overflow-hidden">
+                <div class="p-4 bg-[#161B26]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#A5B1C2]">
+                    <div id="db-connection-text" class="flex items-center gap-2">Conectando...</div>
+                    <div id="sync-status-badge" class="font-bold bg-[#161B26] px-3 py-1.5 rounded-full border border-[#2A3441]">Todo Sincronizado</div>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-[12px] text-left border-collapse min-w-[1200px]">
+                        <thead class="bg-[#161B26] text-[#A5B1C2] uppercase font-bold tracking-widest">
+                            <tr id="table-header-row">
+                                <th class="px-4 py-4 border-r border-[#2A3441] sticky left-0 bg-[#161B26] z-10 text-white">Actividad</th>
+                                <th class="px-3 py-4 border-r border-[#2A3441] text-center text-[#BE2EDD]">META</th>
+                                <th class="px-3 py-4 border-r border-[#2A3441] text-right text-white">% Avance</th>
+                                </tr>
+                        </thead>
+                        <tbody id="table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4 mt-12 pb-8 border-t border-[#2A3441]/50 pt-6">
+                <div class="w-16 h-16 rounded-full border-2 border-[#00D2D3] shadow-lg flex items-center justify-center bg-[#1A202E] overflow-hidden shrink-0">
+                    <img src="Logo con el sononauta .jpg" alt="Logo" class="w-full h-full object-cover" onError="this.style.display='none'">
+                </div>
+                <div class="text-[11px] text-[#A5B1C2] leading-relaxed font-medium">
+                    <p class="text-[#00D2D3] font-bold text-[14px]">Camilo Torres Arismendi.</p>
+                    <p>Tecnólogo Médico. | Encargado de Imagenología. | Cesfam Dalcahue.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="initial-loader" class="min-h-screen flex flex-col items-center justify-center text-[#00D2D3] font-mono uppercase tracking-widest text-center p-4 gap-4">
+        <div class="w-8 h-8 border-4 border-[#00D2D3] border-t-transparent rounded-full animate-spin"></div>
+        Cargando Dashboard de Resolutividad Médica...
+    </div>
 
     <script>
-        const defaultFirebaseConfig = {
-          apiKey: "AIzaSyBCrZ014WwjBAdQXUV2h-u0-myquCuo0cE",
-          authDomain: "cesfam-dalcahue-dashboard.firebaseapp.com",
-          projectId: "cesfam-dalcahue-dashboard",
-          storageBucket: "cesfam-dalcahue-dashboard.firebasestorage.app",
-          messagingSenderId: "496853576287",
-          appId: "1:496853576287:web:340bbeba5781dec34109ea",
-          measurementId: "G-0XMVJ2CLPH"
+        // --- DATA & ESTADOS MIGRADOS ---
+        const MONTHS = [
+            { key: 'ene', label: 'ENE' }, { key: 'feb', label: 'FEB' }, { key: 'mar', label: 'MAR' },
+            { key: 'abr', label: 'ABR' }, { key: 'may', label: 'MAY' }, { key: 'jun', label: 'JUN' },
+            { key: 'jul', label: 'JUL' }, { key: 'ago', label: 'AGO' }, { key: 'sep', label: 'SEP' },
+            { key: 'oct', label: 'OCT' }, { key: 'nov', label: 'NOV' }, { key: 'dic', label: 'DIC' }
+        ];
+
+        const INITIAL_DATA = [
+            { id: 1, actividad: 'MAMOGRAFIA 50 A 69 AÑOS', meta: 1296, months: Array(12).fill('') },
+            { id: 2, actividad: 'MAMOGRAFIA 35 AÑOS Y MAS', meta: 389, months: Array(12).fill('') },
+            { id: 3, actividad: 'ECOGRAFIA MAMARIA', meta: 495, months: Array(12).fill('') },
+            { id: 4, actividad: 'ECOTOMOGRAFIA ABD', meta: 495, months: [3, 3, 10, '', '', '', '', '', '', '', '', ''] },
+            { id: 5, actividad: 'RADIOGRAFIA CADERA 3M', meta: 150, months: [33, 8, '', '', '', '', '', '', '', '', '', ''] },
+            { id: 6, actividad: 'RADIOGRAFIA TORAX', meta: 276, months: [34, 19, '', '', '', '', '', '', '', '', '', ''] },
+            { id: 7, actividad: 'LENTES UAPO', meta: 800, months: Array(12).fill('') },
+            { id: 8, actividad: 'GASTROENTEROLOGIA', meta: 209, months: Array(12).fill('') },
+            { id: 9, actividad: 'P.CUTANEOS', meta: 30, months: Array(12).fill('') },
+            { id: 10, actividad: 'DERMATOLOGIA FARMACOS', meta: 15, months: Array(12).fill('') }
+        ];
+
+        let state = {
+            selectedYear: new Date().getFullYear().toString(),
+            selectedService: 'GLOBAL',
+            activities: [...INITIAL_DATA],
+            hasChanges: false,
+            lockedMonths: Array(12).fill(false),
+            lockedMeta: false
         };
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultFirebaseConfig;
-        const appIdGlobal = typeof __app_id !== 'undefined' ? __app_id : "cesfam-dalcahue-shared-dashboard";
+        // Inicializar Firebase de forma nativa
+        const appId = typeof __app_id !== 'undefined' ? __app_id : "cesfam-dalcahue-shared-dashboard";
+        const db = firebase.firestore();
+        const auth = firebase.auth();
 
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
+        // Autenticar de inmediato de forma anónima
+        auth.signInAnonymously().catch(err => console.error("Error Auth:", err));
+
+        // Nodos del DOM
+        const initialLoader = document.getElementById('initial-loader');
+        const mainContent = document.getElementById('main-content');
+        const selectYear = document.getElementById('select-year');
+        const selectService = document.getElementById('select-service');
+        const btnSave = document.getElementById('btn-save');
+        const tableHeaderRow = document.getElementById('table-header-row');
+        const tableBody = document.getElementById('table-body');
+        const dbConnectionText = document.getElementById('db-connection-text');
+        const syncStatusBadge = document.getElementById('sync-status-badge');
+
+        // Generar cabeceras de meses de la tabla
+        MONTHS.forEach(m => {
+            const th = document.createElement('th');
+            th.className = "px-1 py-4 border-r border-[#2A3441] text-center min-w-[55px] text-white";
+            th.textContent = m.label;
+            tableHeaderRow.appendChild(th);
+        });
+        // Agregar cabeceras finales
+        const thTotal = document.createElement('th'); thTotal.className = "px-3 py-4 border-r border-[#2A3441] text-right text-white"; thTotal.textContent = "Total";
+        const thPdte = document.createElement('th'); thPdte.className = "px-3 py-4 text-right text-white"; thPdte.textContent = "Pdte.";
+        tableHeaderRow.appendChild(thTotal); tableHeaderRow.appendChild(thPdte);
+
+        // Llenar selector de prestaciones
+        INITIAL_DATA.forEach(act => {
+            const opt = document.createElement('option');
+            opt.value = act.id;
+            opt.textContent = act.actividad;
+            opt.className = "bg-[#1A202E]";
+            selectService.appendChild(opt);
+        });
+
+        // Escuchar cambios de año y servicio
+        selectYear.value = state.selectedYear;
+        selectYear.addEventListener('change', (e) => {
+            state.selectedYear = e.target.value;
+            state.hasChanges = false;
+            btnSave.classList.add('hidden');
+            attachFirestoreListener();
+        });
+
+        selectService.addEventListener('change', (e) => {
+            state.selectedService = e.target.value;
+            renderDashboard();
+        });
+
+        btnSave.addEventListener('click', saveToFirestore);
+
+        // Conectar Listener en tiempo real de Firestore
+        let currentUnsubscribe = null;
+        function attachFirestoreListener() {
+            if (currentUnsubscribe) currentUnsubscribe();
+            
+            dbConnectionText.textContent = "Sincronizando datos...";
+            const collectionName = `activities_${state.selectedYear}`;
+            const actsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(collectionName);
+
+            currentUnsubscribe = actsRef.onSnapshot((snapshot) => {
+                if (snapshot.empty) {
+                    // Sembrar datos iniciales si la nube está vacía
+                    const batch = db.batch();
+                    INITIAL_DATA.forEach(act => {
+                        batch.set(actsRef.doc(act.id.toString()), act);
+                    });
+                    batch.commit().then(() => {
+                        dbConnectionText.textContent = "Conexión estable con Firestore.";
+                    });
+                } else {
+                    if (!state.hasChanges) {
+                        state.activities = snapshot.docs.map(d => d.data()).sort((a, b) => a.id - b.id);
+                        renderDashboard();
+                    }
+                    dbConnectionText.textContent = "Conexión estable con Firestore.";
+                    initialLoader.classList.add('hidden');
+                    mainContent.classList.remove('hidden');
+                }
+            }, (err) => {
+                console.error("Firestore Error: ", err);
+                dbConnectionText.innerHTML = "<span class='text-red-400'>Error de permisos o desconectado.</span>";
+                initialLoader.classList.add('hidden');
+                mainContent.classList.remove('hidden');
+            });
         }
-        window.firebaseAuth = firebase.auth();
-        window.firebaseDb = firebase.firestore();
-        window.firebaseAppId = appIdGlobal;
-    </script>
-</head>
-<body>
-    <div id="root"></div>
 
-    <script type="text/babel">
-        (() => {
-            const { useState, useMemo, useEffect, useRef } = React;
+        // --- CÁLCULOS CLÍNICOS Y KPIs ---
+        function renderDashboard() {
+            const actualYear = new Date().getFullYear();
+            const evalYear = parseInt(state.selectedYear);
+            let passedMonths = (evalYear === actualYear) ? Math.max(1, new Date().getMonth() + 1) : (evalYear > actualYear ? 1 : 12);
 
-            // Recuperamos las instancias globales seguras de Firebase
-            const auth = window.firebaseAuth;
-            const db = window.firebaseDb;
-            const appId = window.firebaseAppId;
-
-            // --- Componente: Fondo Animado ---
-            const AnimatedBackground = () => (
-                <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-[#161B26]">
-                    <div className="absolute top-[-10%] left-[-10%] w-[40rem] h-[40rem] bg-[#00D2D3] rounded-full mix-blend-screen filter blur-[150px] opacity-10 animate-blob"></div>
-                    <div className="absolute top-[20%] right-[-10%] w-[40rem] h-[40rem] bg-[#BE2EDD] rounded-full mix-blend-screen filter blur-[150px] opacity-10 animate-blob animation-delay-2000"></div>
-                    <div className="absolute bottom-[-20%] left-[20%] w-[40rem] h-[40rem] bg-[#0097e6] rounded-full mix-blend-screen filter blur-[150px] opacity-10 animate-blob animation-delay-4000"></div>
-                </div>
-            );
-
-            // --- Iconos en formato SVG ---
-            const Icon = ({ name, size = 24, className = "" }) => {
-                const icons = {
-                    Activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
-                    Target: <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></>,
-                    TrendingUp: <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />,
-                    TrendingDown: <polyline points="23 18 13.5 8.5 8.5 13.5 1 6" />,
-                    AlertCircle: <><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>,
-                    BarChart3: <><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></>,
-                    Scan: <><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><line x1="7" y1="12" x2="17" y2="12" /></>,
-                    Bone: <path d="M17 10c.7-1.3 1.8-2 3-2 2.2 0 4 1.8 4 4s-1.8 4-4 4c-1.2 0-2.3-.7-3-2H7c-.7 1.3-1.8 2-3 2-2.2 0-4-1.8-4-4s1.8-4 4-4c1.2 0 2.3.7 3 2h10Z" />,
-                    Glasses: <><circle cx="6" cy="15" r="4" /><circle cx="18" cy="15" r="4" /><path d="M14 15a2 2 0 0 0-4 0" /><path d="M2.5 13 5 7c.7-1.3 1.4-2 3-2" /><path d="M21.5 13 19 7c-.7-1.3-1.4-2-3-2" /></>,
-                    Stethoscope: <><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3" /><path d="M8 15v1a6 6 0 0 0 6 6h2" /><circle cx="20" cy="10" r="2" /></>,
-                    Pill: <><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" /><path d="m8.5 8.5 7 7" /></>,
-                    Sparkles: <><path d="M9.937 15.5H10L8.457 18.287l1.48.514L10 16.037l.063 2.764 1.48-.514L10 15.5Z" /><path d="M12 3v1" /><path d="M12 20v1" /><path d="M3 12h1" /><path d="M20 12h1" /><path d="m5.6 5.6.7.7" /><path d="m17.7 17.7.7.7" /><path d="m5.6 18.4.7-.7" /><path d="m17.7 6.3.7-.7" /></>,
-                    BrainCircuit: <><path d="M12 4.5a2.5 2.5 0 0 0-4.96-.46 2.5 2.5 0 0 0-1.98 3 2.5 2.5 0 0 0-1.32 4.24 3 3 0 0 0 .34 5.58 2.5 2.5 0 0 0 2.96 3.08 2.5 2.5 0 0 0 4.96-.44" /><path d="M16 8V5c0-1.1.9-2 2-2" /><circle cx="12" cy="13" r="3" /><path d="M9 13h1" /><path d="M14 13h1" /><path d="M12 10v1" /><path d="M12 15v1" /></>,
-                    RefreshCw: <><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 21v-5h-5" /></>,
-                    X: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
-                    CheckCircle: <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></>,
-                    Copy: <><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>,
-                    Save: <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></>,
-                    Download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>,
-                    History: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
-                    FileText: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></>,
-                    Smartphone: <><rect x="5" y="2" width="14" height="20" rx="2" ry="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></>,
-                    Lock: <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>,
-                    Unlock: <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /></>
-                };
-
-                return (
-                    <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        width={size} 
-                        height={size} 
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        strokeWidth="2" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        className={className}
-                    >
-                        {icons[name] || null}
-                    </svg>
-                );
-            };
-
-            const MONTHS = [
-                { key: 'ene', label: 'ENE' }, { key: 'feb', label: 'FEB' }, { key: 'mar', label: 'MAR' },
-                { key: 'abr', label: 'ABR' }, { key: 'may', label: 'MAY' }, { key: 'jun', label: 'JUN' },
-                { key: 'jul', label: 'JUL' }, { key: 'ago', label: 'AGO' }, { key: 'sep', label: 'SEP' },
-                { key: 'oct', label: 'OCT' }, { key: 'nov', label: 'NOV' }, { key: 'dic', label: 'DIC' }
-            ];
-
-            const INITIAL_DATA = [
-                { id: 1, actividad: 'MAMOGRAFIA 50 A 69 AÑOS', meta: 1296, months: Array(12).fill('') },
-                { id: 2, actividad: 'MAMOGRAFIA 35 AÑOS Y MAS', meta: 389, months: Array(12).fill('') },
-                { id: 3, actividad: 'ECOGRAFIA MAMARIA', meta: 495, months: Array(12).fill('') },
-                { id: 4, actividad: 'ECOTOMOGRAFIA ABD', meta: 495, months: [3, 3, 10, '', '', '', '', '', '', '', '', ''] },
-                { id: 5, actividad: 'RADIOGRAFIA CADERA 3M', meta: 150, months: [33, 8, '', '', '', '', '', '', '', '', '', ''] },
-                { id: 6, actividad: 'RADIOGRAFIA TORAX', meta: 276, months: [34, 19, '', '', '', '', '', '', '', '', '', ''] },
-                { id: 7, actividad: 'LENTES UAPO', meta: 800, months: Array(12).fill('') },
-                { id: 8, actividad: 'GASTROENTEROLOGIA', meta: 209, months: Array(12).fill('') },
-                { id: 9, actividad: 'P.CUTANEOS', meta: 30, months: Array(12).fill('') },
-                { id: 10, actividad: 'DERMATOLOGIA FARMACOS', meta: 15, months: Array(12).fill('') }
-            ];
-
-            const getIconNameForActivity = (name) => {
-                const upper = name.toUpperCase();
-                if (upper.includes('MAMOGRAFIA')) return 'Scan';
-                if (upper.includes('ECO')) return 'Activity';
-                if (upper.includes('RADIOGRAFIA')) return 'Bone';
-                if (upper.includes('LENTES')) return 'Glasses';
-                if (upper.includes('GASTRO')) return 'Stethoscope';
-                if (upper.includes('FARMACOS') || upper.includes('DERMATOLOGIA')) return 'Pill';
-                return 'Activity';
-            };
-
-            function App() {
-                const currentYear = new Date().getFullYear().toString();
-                const [selectedYear, setSelectedYear] = useState(currentYear);
+            // Procesar métricas por actividad
+            const processed = state.activities.map(act => {
+                const total = act.months.reduce((sum, val) => sum + (Number(val) || 0), 0);
+                const avance = act.meta > 0 ? ((total / act.meta) * 100).toFixed(2) : "0.00";
+                const pendiente = act.meta > 0 ? Math.max(0, act.meta - total) : 0;
+                const projected = Math.round((total / passedMonths) * 12);
                 
-                const [activities, setActivities] = useState(INITIAL_DATA);
-                const [selectedService, setSelectedService] = useState('GLOBAL');
-                const [user, setUser] = useState(null);
-                const [isLoading, setIsLoading] = useState(true);
-                
-                // Estados de Sistema y UI
-                const [dbStatus, setDbStatus] = useState('checking'); 
-                const [dbErrorType, setDbErrorType] = useState(null);
-                const [syncStatus, setSyncStatus] = useState('synced'); 
-                const [rulesCopied, setRulesCopied] = useState(false);
-                
-                // Modal, QR y Logs
-                const [showLogs, setShowLogs] = useState(false);
-                const [logs, setLogs] = useState([]);
-                const [showQR, setShowQR] = useState(true);
-                
-                // Nuevas Funcionalidades: Notificaciones y Bloqueo
-                const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
-                const [lockedMonths, setLockedMonths] = useState(Array(12).fill(false));
-                const [lockedMeta, setLockedMeta] = useState(false);
-                
-                const [hasChanges, setHasChanges] = useState(false);
-                const hasChangesRef = useRef(false);
+                let forecastAlert = 'neutral';
+                const expectedNow = (act.meta / 12) * passedMonths;
+                if (act.meta > 0) {
+                    if (total >= expectedNow * 0.95) forecastAlert = 'good';
+                    else if (total < expectedNow * 0.75) forecastAlert = 'bad';
+                    else forecastAlert = 'warning';
+                }
+                return { ...act, total, avance, pendiente, projected, forecastAlert };
+            });
 
-                useEffect(() => {
-                    hasChangesRef.current = hasChanges;
-                }, [hasChanges]);
+            // Filtrar según servicio seleccionado
+            const filtered = state.selectedService === 'GLOBAL' ? processed : processed.filter(a => a.id.toString() === state.selectedService);
+            
+            // Totales de KPIs de cabecera
+            const totalMeta = filtered.reduce((s, a) => s + a.meta, 0);
+            const totalRealizado = filtered.reduce((s, a) => s + a.total, 0);
+            const porcentajeAvance = totalMeta > 0 ? ((totalRealizado / totalMeta) * 100).toFixed(2) : "0.00";
 
-                // Mostrar Toast
-                const showToastNotification = (message, type = 'success') => {
-                    setToast({ show: true, message, type });
-                    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3500);
-                };
+            document.getElementById('kpi-meta').textContent = totalMeta.toLocaleString('es-CL');
+            document.getElementById('kpi-realizado').textContent = totalRealizado.toLocaleString('es-CL');
+            document.getElementById('kpi-avance').textContent = `${porcentajeAvance}%`;
 
-                // Estructura segura de reglas en texto plano para blindarlo contra Babel
-                const cleanRulesText = "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}";
+            // Construir Gráfico de Actividad Mensual
+            const monthlyTotals = Array(12).fill(0);
+            filtered.forEach(act => {
+                act.months.forEach((v, i) => { monthlyTotals[i] += Number(v) || 0; });
+            });
+            renderChart(monthlyTotals);
 
-                // Función de copiado limpio
-                const handleCopyRules = () => {
-                    try {
-                        if (navigator.clipboard && window.isSecureContext) {
-                            navigator.clipboard.writeText(cleanRulesText).then(() => {
-                                setRulesCopied(true);
-                                setTimeout(() => setRulesCopied(false), 3000);
-                            });
-                        } else {
-                            const textArea = document.createElement("textarea");
-                            textArea.value = cleanRulesText;
-                            textArea.style.position = "fixed";
-                            textArea.style.left = "-999999px";
-                            document.body.appendChild(textArea);
-                            textArea.focus();
-                            textArea.select();
-                            document.execCommand("copy");
-                            textArea.remove();
-                            setRulesCopied(true);
-                            setTimeout(() => setRulesCopied(false), 3000);
-                        }
-                    } catch (e) {
-                        console.error("Error al copiar: ", e);
-                    }
-                };
+            // Construir lista de pronósticos
+            renderForecasts(processed);
 
-                // Iniciar Autenticación Segura
-                useEffect(() => {
-                    const initAuth = async () => {
-                        try {
-                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                                await auth.signInWithCustomToken(__initial_auth_token);
-                            } else {
-                                await auth.signInAnonymously();
-                            }
-                        } catch (e) { 
-                            setDbStatus('error');
-                            setDbErrorType('auth');
-                            setIsLoading(false);
-                        }
-                    };
-                    initAuth();
-                    const unsubscribe = auth.onAuthStateChanged((u) => {
-                        setUser(u);
-                        if (!u) setIsLoading(false); 
-                    });
-                    return () => unsubscribe();
-                }, []);
+            // Renderizar la gran tabla interactiva
+            renderTable(processed);
 
-                // Conectar a Firestore (Actividades y Configuración)
-                useEffect(() => {
-                    if (!user) return;
-                    setIsLoading(true);
-                    
-                    const collectionName = `activities_${selectedYear}`;
-                    const actsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(collectionName);
-                    const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc(`settings_${selectedYear}`);
-                    
-                    // Escuchar Configuración (Meses Bloqueados)
-                    const unsubConfig = configRef.onSnapshot(doc => {
-                        if (doc.exists) {
-                            if (!hasChangesRef.current) {
-                                setLockedMonths(doc.data().lockedMonths || Array(12).fill(false));
-                                setLockedMeta(doc.data().lockedMeta || false);
-                            }
-                        } else {
-                            setLockedMonths(Array(12).fill(false));
-                            setLockedMeta(false);
-                        }
-                    });
+            // Estado del Badge de cambios
+            if (state.hasChanges) {
+                syncStatusBadge.innerHTML = "<span class='text-yellow-400'>⚠️ Cambios locales pendientes</span>";
+                btnSave.classList.remove('hidden');
+            } else {
+                syncStatusBadge.innerHTML = "<span class='text-[#A5B1C2]'>✓ Sincronizado con la nube</span>";
+                btnSave.classList.add('hidden');
+            }
+        }
 
-                    // Escuchar Actividades
-                    const unsubscribe = actsRef.onSnapshot((snapshot) => {
-                        if (snapshot.empty) {
-                            setSyncStatus('syncing');
-                            const batch = db.batch();
-                            INITIAL_DATA.forEach(act => {
-                                const docRef = actsRef.doc(act.id.toString());
-                                batch.set(docRef, act);
-                            });
-                            batch.commit().catch(e => console.error("Init err:", e));
-                        } else {
-                            const data = snapshot.docs.map(d => d.data()).sort((a, b) => a.id - b.id);
-                            
-                            if (!hasChangesRef.current) {
-                                setActivities(data);
-                                setSyncStatus('synced');
-                            }
-                            
-                            setDbStatus('connected');
-                            setDbErrorType(null);
-                        }
-                        setIsLoading(false);
-                    }, (err) => {
-                        setDbStatus('error');
-                        if (err.message.includes("Cloud Firestore API has not been used") || err.message.includes("is disabled")) {
-                            setDbErrorType('not-created');
-                        } else if (err.message.includes("permission-denied") || err.message.includes("Missing or insufficient permissions")) {
-                            setDbErrorType('permissions');
-                        } else {
-                            setDbErrorType('unknown');
-                        }
-                        setIsLoading(false);
-                    });
-                    return () => { unsubscribe(); unsubConfig(); };
-                }, [user, selectedYear]);
-
-                // Historial de Logs
-                useEffect(() => {
-                    if (!user || !showLogs) return;
-                    const logsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`logs_${selectedYear}`).orderBy('timestamp', 'desc').limit(20);
-                    const unsub = logsRef.onSnapshot(snap => {
-                        setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                    });
-                    return () => unsub();
-                }, [user, showLogs, selectedYear]);
-
-                // Procesamiento de datos y KPIs
-                const processedData = useMemo(() => {
-                    const actualYear = new Date().getFullYear();
-                    const evalYear = parseInt(selectedYear);
-                    let passedMonths = 12;
-                    
-                    if (evalYear === actualYear) {
-                        passedMonths = Math.max(1, new Date().getMonth() + 1);
-                    } else if (evalYear > actualYear) {
-                        passedMonths = 1;
-                    }
-
-                    return activities.map(act => {
-                        const total = act.months.reduce((sum, val) => sum + (Number(val) || 0), 0);
-                        const avance = act.meta > 0 ? ((total / act.meta) * 100).toFixed(2) : "0.00";
-                        const pendiente = act.meta > 0 ? Math.max(0, act.meta - total) : 0;
-                        
-                        const runRate = (total / passedMonths) * 12;
-                        const projected = Math.round(runRate);
-                        const expectedMetaNow = (act.meta / 12) * passedMonths;
-                        
-                        let forecastAlert = 'neutral';
-                        if (act.meta > 0) {
-                            if (total >= expectedMetaNow * 0.95) forecastAlert = 'good';
-                            else if (total < expectedMetaNow * 0.75) forecastAlert = 'bad';
-                            else forecastAlert = 'warning';
-                        }
-
-                        return { ...act, total, avance, pendiente, projected, forecastAlert };
-                    });
-                }, [activities, selectedYear]);
-
-                const kpis = useMemo(() => {
-                    const data = selectedService === 'GLOBAL' 
-                        ? processedData 
-                        : processedData.filter(a => a.id.toString() === selectedService);
-                    const meta = data.reduce((s, a) => s + a.meta, 0);
-                    const realizado = data.reduce((s, a) => s + a.total, 0);
-                    const avance = meta > 0 ? ((realizado / meta) * 100).toFixed(2) : "0.00";
-                    return { meta, realizado, avance };
-                }, [processedData, selectedService]);
-
-                const monthlyTotals = useMemo(() => {
-                    const totals = Array(12).fill(0);
-                    const data = selectedService === 'GLOBAL' 
-                        ? processedData 
-                        : processedData.filter(a => a.id.toString() === selectedService);
-                    data.forEach(act => {
-                        act.months.forEach((v, i) => { totals[i] += Number(v) || 0; });
-                    });
-                    return totals;
-                }, [processedData, selectedService]);
-
-                const { chartTicks, chartMax } = useMemo(() => {
-                    const max = Math.max(...monthlyTotals, 0);
-                    const niceMax = max === 0 ? 10 : Math.ceil(max / 10) * 10;
-                    const ticks = [];
-                    for (let i = 5; i >= 0; i--) ticks.push(Math.round((niceMax / 5) * i));
-                    return { chartTicks: ticks, chartMax: niceMax };
-                }, [monthlyTotals]);
-
-                // Funciones de Edición LOCAL (Meses y Metas)
-                const handleMonthEdit = (id, mIdx, val) => {
-                    if (val !== '' && !/^\d+$/.test(val)) return;
-                    if (lockedMonths[mIdx]) return; 
-
-                    const updatedActivities = activities.map(act => {
-                        if (act.id === id) {
-                            const newMonths = [...act.months];
-                            newMonths[mIdx] = val;
-                            return { ...act, months: newMonths };
-                        }
-                        return act;
-                    });
-                    
-                    setActivities(updatedActivities);
-                    setHasChanges(true);
-                    setSyncStatus('unsaved');
-                };
-
-                const handleMetaEdit = (id, val) => {
-                    if (val !== '' && !/^\d+$/.test(val)) return;
-                    if (lockedMeta) return;
-
-                    const updatedActivities = activities.map(act => {
-                        if (act.id === id) {
-                            return { ...act, meta: val === '' ? 0 : Number(val) };
-                        }
-                        return act;
-                    });
-                    
-                    setActivities(updatedActivities);
-                    setHasChanges(true);
-                    setSyncStatus('unsaved');
-                };
-
-                const toggleMonthLock = (mIdx) => {
-                    const newLocked = [...lockedMonths];
-                    newLocked[mIdx] = !newLocked[mIdx];
-                    setLockedMonths(newLocked);
-                    setHasChanges(true);
-                    setSyncStatus('unsaved');
-                };
-
-                const toggleMetaLock = () => {
-                    setLockedMeta(!lockedMeta);
-                    setHasChanges(true);
-                    setSyncStatus('unsaved');
-                };
-
-                // Función de GUARDADO EN LA NUBE
-                const handleSave = async () => {
-                    if (!user || dbStatus === 'error') {
-                        setSyncStatus('error');
-                        showToastNotification('Error: Sin conexión', 'error');
-                        return; 
-                    }
-                    
-                    setSyncStatus('syncing');
-                    try {
-                        const batch = db.batch();
-                        
-                        // Guardar Actividades
-                        const activitiesRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`activities_${selectedYear}`);
-                        activities.forEach(act => {
-                            const docRef = activitiesRef.doc(act.id.toString());
-                            batch.set(docRef, act);
-                        });
-                        
-                        // Guardar Configuración (Meses Bloqueados)
-                        const configRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc(`settings_${selectedYear}`);
-                        batch.set(configRef, { lockedMonths, lockedMeta }, { merge: true });
-
-                        // Guardar Historial de Auditoría
-                        const logRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`logs_${selectedYear}`).doc();
-                        batch.set(logRef, {
-                            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                            user: user?.isAnonymous ? 'Usuario de Gestión' : (user?.email || 'Usuario Clínico'),
-                            action: 'Actualización de Prestaciones / Metas',
-                            service: selectedService
-                        });
-
-                        await batch.commit();
-                        
-                        setHasChanges(false);
-                        setSyncStatus('synced');
-                        showToastNotification('Datos sincronizados correctamente');
-                    } catch (error) {
-                        console.error("Error crítico guardando:", error);
-                        setSyncStatus('error');
-                        setDbStatus('error');
-                        showToastNotification('Error al guardar datos', 'error');
-                        if (error.message && (error.message.includes("permission-denied") || error.message.includes("Missing or insufficient permissions"))) {
-                            setDbErrorType('permissions');
-                        } else {
-                            setDbErrorType('unknown');
-                        }
-                    }
-                };
-
-                // Exportación a Excel
-                const exportToExcel = () => {
-                    const data = processedData.map(r => {
-                        const row = { 'ID': r.id, 'Actividad': r.actividad, 'Meta Anual': r.meta, '% Avance': r.avance + '%' };
-                        MONTHS.forEach((m, i) => row[m.label] = r.months[i] || 0);
-                        row['Total Realizado'] = r.total;
-                        row['Pendiente'] = r.pendiente;
-                        row['Proyección Fin de Año'] = r.projected;
-                        return row;
-                    });
-                    const ws = XLSX.utils.json_to_sheet(data);
-                    const wb = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(wb, ws, "Reporte_CESFAM");
-                    XLSX.writeFile(wb, `Reporte_Resolutividad_CESFAM_${selectedYear}.xlsx`);
-                };
-
-                // Exportación a PDF
-                const exportToPDF = () => {
-                    const { jsPDF } = window.jspdf;
-                    const doc = new jsPDF('landscape');
-                    
-                    doc.setFontSize(18);
-                    doc.text(`Reporte de Metas y Resolutividad CESFAM - Año ${selectedYear}`, 14, 20);
-                    doc.setFontSize(11);
-                    doc.text(`Generado el: ${new Date().toLocaleDateString()}`, 14, 28);
-
-                    const tableColumn = ["Actividad", "Meta", "Avance", ...MONTHS.map(m=>m.label), "Total", "Pdte"];
-                    const tableRows = processedData.map(r => [
-                        r.actividad, r.meta, r.avance + '%', ...r.months.map(m => m || '-'), r.total, r.pendiente
-                    ]);
-
-                    doc.autoTable({
-                        head: [tableColumn],
-                        body: tableRows,
-                        startY: 35,
-                        styles: { fontSize: 8, cellPadding: 2 },
-                        headStyles: { fillColor: [0, 210, 211], textColor: [22, 27, 38] },
-                        alternateRowStyles: { fillColor: [240, 240, 240] }
-                    });
-
-                    doc.save(`Reporte_Resolutividad_CESFAM_${selectedYear}.pdf`);
-                };
-
-                if (isLoading) return (
-                    <>
-                        <AnimatedBackground />
-                        <div className="min-h-screen relative z-10 flex items-center justify-center text-[#00D2D3] font-mono uppercase tracking-widest text-center p-4">
-                            Conectando a la Base de Datos...<br/>(Si esto demora, revisa tu conexión a Internet)
-                        </div>
-                    </>
-                );
-
-                return (
-                    <>
-                        <AnimatedBackground />
-                        <div className="min-h-screen bg-transparent text-white font-sans p-4 md:p-8 selection:bg-[#00D2D3]/30 custom-scrollbar overflow-y-auto relative z-10">
-                            
-                            {/* Notificación Toast Flotante */}
-                            {toast.show && (
-                                <div className={`fixed top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[200] flex items-center gap-3 animate-toast ${toast.type === 'success' ? 'bg-[#00D2D3] text-[#161B26]' : 'bg-red-500 text-white'}`}>
-                                    <Icon name={toast.type === 'success' ? "CheckCircle" : "AlertCircle"} size={20} />
-                                    <span className="font-bold text-sm tracking-wide uppercase">{toast.message}</span>
-                                </div>
-                            )}
-
-                            {/* Modal Historial de Modificaciones */}
-                            {showLogs && (
-                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#161B26]/80 backdrop-blur-sm">
-                                    <div className="bg-[#1A202E] border border-[#2A3441] w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
-                                        <div className="p-5 border-b border-[#2A3441] flex justify-between items-center bg-[#1A202E] rounded-t-2xl">
-                                            <div className="flex items-center gap-3"><Icon name="History" className="text-[#00D2D3]" size={20} /><h2 className="font-bold uppercase text-sm tracking-widest">Auditoría {selectedYear}</h2></div>
-                                            <button onClick={() => setShowLogs(false)} className="text-[#A5B1C2] hover:text-white"><Icon name="X" size={20} /></button>
-                                        </div>
-                                        <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
-                                            {logs.length === 0 ? <p className="text-center text-[#A5B1C2] text-sm py-4">No hay registros de modificaciones para este año.</p> : 
-                                                <div className="space-y-4">
-                                                    {logs.map(log => (
-                                                        <div key={log.id} className="border-l-2 border-[#00D2D3] pl-4 py-1">
-                                                            <p className="text-xs text-[#A5B1C2]">{log.timestamp ? log.timestamp.toDate().toLocaleString() : 'Justo ahora'}</p>
-                                                            <p className="text-sm font-medium text-white">{log.action} - {log.service === 'GLOBAL' ? 'Global' : 'Servicio Específico'}</p>
-                                                            <p className="text-[10px] text-[#A5B1C2] mt-1 font-mono uppercase">Por: {log.user}</p>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            }
-                                        </div>
-                                        <div className="p-4 bg-[#161B26]/50 border-t border-[#2A3441] flex justify-end rounded-b-2xl">
-                                            <button onClick={() => setShowLogs(false)} className="text-xs font-bold text-[#A5B1C2] hover:text-white px-6 py-2 uppercase tracking-widest text-white">Cerrar</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="max-w-7xl mx-auto space-y-8">
-                                
-                                {/* PANEL GIGANTE DE ERROR DE CONEXIÓN */}
-                                {dbStatus === 'error' && (
-                                    <div className="bg-red-500/20 border-2 border-red-500 text-white p-6 rounded-xl shadow-2xl">
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <Icon name="AlertCircle" size={32} className="text-red-400" />
-                                            <h2 className="text-xl md:text-2xl font-bold text-red-400 uppercase tracking-wider">Error de Conexión a Base de Datos</h2>
-                                        </div>
-                                        
-                                        {dbErrorType === 'not-created' && (
-                                            <div className="space-y-4">
-                                                <p className="text-lg font-medium">PASO 1: AÚN NO HAS ACTIVADO FIRESTORE.</p>
-                                                <p className="text-base text-red-200">El error de la consola indica que Firebase bloqueó la conexión porque la API de Firestore no está habilitada en tu proyecto <b>cesfam-dalcahue-dashboard</b>.</p>
-                                                <a 
-                                                    href="https://console.firebase.google.com/project/cesfam-dalcahue-dashboard/firestore" 
-                                                    target="_blank" 
-                                                    rel="noreferrer" 
-                                                    className="inline-flex items-center gap-2 bg-[#00D2D3] text-[#161B26] font-bold px-6 py-3 rounded-lg hover:bg-white transition-colors"
-                                                >
-                                                    <Icon name="Target" size={18} />
-                                                    Activar Firestore en la Consola
-                                                </a>
-                                                <p className="text-sm italic opacity-80 mt-2">Nota: Si acabas de activarla, espera 2 o 3 minutos a que Google aplique los cambios y recarga esta página.</p>
-                                            </div>
-                                        )}
-
-                                        {dbErrorType === 'permissions' && (
-                                            <div>
-                                                <p className="text-base font-medium mb-3">La base de datos rechazó el acceso (seguramente al intentar guardar). Ve a tu consola de Firebase &gt; Firestore Database &gt; <b className="text-[#00D2D3]">Reglas</b> y pega este código exacto:</p>
-                                                <div className="relative bg-[#0F141E] p-5 rounded-lg border border-red-500/30">
-                                                    <button 
-                                                        onClick={handleCopyRules} 
-                                                        className={`absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 ${rulesCopied ? 'bg-green-500 text-white' : 'bg-[#00D2D3] text-[#161B26] hover:bg-white'}`}
-                                                    >
-                                                        <Icon name={rulesCopied ? "CheckCircle" : "Copy"} size={14} />
-                                                        {rulesCopied ? "¡Copiado!" : "Copiar Reglas"}
-                                                    </button>
-                                                    <pre className="text-green-300 font-mono text-sm overflow-x-auto whitespace-pre">
-                                                        {cleanRulesText}
-                                                    </pre>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {dbErrorType === 'unknown' && (
-                                            <p className="text-lg font-medium">Ocurrió un error desconocido al intentar conectar o guardar los datos. Revisa la consola de tu navegador (F12) para más detalles.</p>
-                                        )}
-
-                                        {dbErrorType === 'auth' && (
-                                            <p className="text-lg font-medium">Autenticación bloqueada: Ve a tu consola de Firebase &gt; Authentication &gt; Sign-in method y habilita el método <b className="text-[#00D2D3]">Anónimo</b>.</p>
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#2A3441] pb-6">
-                                    <div className="flex items-center gap-3 text-white">
-                                        <div className="p-2 bg-[#00D2D3]/10 rounded-lg border border-[#00D2D3]/20 backdrop-blur-sm"><Icon name="Activity" className="text-[#00D2D3]" size={24} /></div>
-                                        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Control de programas ID y Resolutividad</h1>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                                        {/* BOTÓN DE GUARDAR CAMBIOS */}
-                                        {hasChanges && (
-                                            <button 
-                                                onClick={handleSave} 
-                                                disabled={syncStatus === 'syncing'} 
-                                                className="bg-[#00D2D3] text-[#161B26] font-bold px-4 py-2.5 rounded-lg shadow-[0_0_15px_rgba(0,210,211,0.4)] hover:bg-white hover:shadow-[0_0_20px_rgba(255,255,255,0.6)] transition-all active:scale-95 flex items-center gap-2 text-sm uppercase tracking-wider"
-                                            >
-                                                {syncStatus === 'syncing' ? <Icon name="RefreshCw" size={18} className="animate-spin" /> : <Icon name="Save" size={18} />}
-                                                {syncStatus === 'syncing' ? 'Guardando...' : 'Guardar Cambios'}
-                                            </button>
-                                        )}
-                                        
-                                        {/* Controles Avanzados (Exportación, Historial y Año) */}
-                                        <div className="flex bg-[#1A202E]/80 backdrop-blur-md border border-[#2A3441] rounded-lg p-1.5 gap-1 items-center">
-                                            <button onClick={exportToExcel} title="Exportar a Excel" className="p-1.5 text-green-400 hover:bg-green-400/20 rounded-md transition-colors"><Icon name="FileText" size={18} /></button>
-                                            <button onClick={exportToPDF} title="Exportar a PDF" className="p-1.5 text-red-400 hover:bg-red-400/20 rounded-md transition-colors"><Icon name="Download" size={18} /></button>
-                                            <div className="w-px h-5 bg-[#2A3441] mx-1"></div>
-                                            <button onClick={() => setShowLogs(true)} title="Ver Historial" className="p-1.5 text-[#00D2D3] hover:bg-[#00D2D3]/20 rounded-md transition-colors"><Icon name="History" size={18} /></button>
-                                            <div className="w-px h-5 bg-[#2A3441] mx-1"></div>
-                                            <select className="bg-transparent border-none outline-none text-white font-bold text-sm cursor-pointer pr-2" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-                                                <option value="2024" className="bg-[#1A202E]">Año 2024</option>
-                                                <option value="2025" className="bg-[#1A202E]">Año 2025</option>
-                                                <option value="2026" className="bg-[#1A202E]">Año 2026</option>
-                                                <option value="2027" className="bg-[#1A202E]">Año 2027</option>
-                                            </select>
-                                        </div>
-
-                                        <select className="bg-[#1A202E]/80 backdrop-blur-md border border-[#2A3441] px-4 py-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-[#00D2D3] cursor-pointer min-w-[220px] text-white" value={selectedService} onChange={(e) => setSelectedService(e.target.value)}>
-                                            <option value="GLOBAL">Vista Global (Todos)</option>
-                                            {processedData.map(a => <option key={a.id} value={a.id}>{a.actividad}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-gradient-to-br from-[#BE2EDD]/90 to-[#E056FD]/90 backdrop-blur-sm p-6 rounded-2xl shadow-lg relative overflow-hidden border border-white/10 group">
-                                        <Icon name="Target" className="absolute -right-4 -top-4 opacity-20 group-hover:scale-110 transition-transform" size={100} />
-                                        <p className="text-white/80 text-xs font-bold uppercase tracking-widest">Meta Anual {selectedYear}</p>
-                                        <p className="text-4xl font-bold mt-2 text-white">{kpis.meta.toLocaleString('es-CL')}</p>
-                                    </div>
-                                    <div className="bg-[#1A202E]/80 backdrop-blur-md border border-[#2A3441] p-6 rounded-2xl flex flex-col justify-between shadow-inner">
-                                        <div className="flex justify-between items-center text-[#A5B1C2]">
-                                            <p className="text-xs font-bold uppercase tracking-widest">Total Realizado</p>
-                                            <Icon name="Activity" size={20} className="text-[#00D2D3]" />
-                                        </div>
-                                        <p className="text-4xl font-bold mt-4 text-white">{kpis.realizado.toLocaleString('es-CL')}</p>
-                                    </div>
-                                    <div className="bg-gradient-to-br from-[#0097e6]/90 to-[#00D2D3]/90 backdrop-blur-sm p-6 rounded-2xl shadow-lg relative overflow-hidden border border-white/10 group">
-                                        <Icon name="TrendingUp" className="absolute -right-4 -top-4 opacity-20 group-hover:scale-110 transition-transform" size={100} />
-                                        <p className="text-white/80 text-xs font-bold uppercase tracking-widest">% Avance Global</p>
-                                        <p className="text-4xl font-bold mt-2 text-white">{kpis.avance}%</p>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                                    <div className="bg-[#1A202E]/80 backdrop-blur-md p-6 rounded-2xl border border-[#2A3441] shadow-xl">
-                                        <h2 className="text-sm font-bold uppercase text-[#A5B1C2] mb-6 tracking-widest">Actividad Mensual</h2>
-                                        <div className="relative h-[240px] flex text-[10px] text-[#A5B1C2]">
-                                            <div className="flex flex-col justify-between items-end pr-4 pb-8 min-w-[35px] font-mono">{chartTicks.map((t, i) => <span key={i}>{t}</span>)}</div>
-                                            <div className="relative flex-1 border-b border-[#2A3441] pb-8 flex items-end px-2">
-                                                <div className="absolute inset-0 pb-8 flex flex-col justify-between">{chartTicks.map((_, i) => <div key={i} className="w-full border-t border-[#2A3441]/40"></div>)}</div>
-                                                <div className="relative z-10 w-full h-full flex items-end justify-between">
-                                                    {monthlyTotals.map((total, idx) => (
-                                                        <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end px-1 relative">
-                                                            <div className="w-full max-w-[24px] bg-[#00D2D3] rounded-t-sm shadow-[0_0_10px_#00D2D344] group-hover:bg-[#22F6F7] transition-all" style={{ height: `${chartMax > 0 ? (total/chartMax)*100 : 0}%` }}></div>
-                                                            <span className="absolute -bottom-6 text-[9px] font-bold uppercase">{MONTHS[idx].key}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-[#1A202E]/80 backdrop-blur-md p-6 rounded-2xl border border-[#2A3441] shadow-xl overflow-y-auto max-h-[310px] custom-scrollbar">
-                                        <h2 className="text-sm font-bold uppercase text-[#A5B1C2] mb-6 tracking-widest">Estado y Pronóstico de Metas</h2>
-                                        <div className="space-y-6">
-                                            {processedData.map(act => {
-                                                const hasMeta = act.meta > 0;
-                                                const isComp = hasMeta && Number(act.avance) >= 100;
-                                                const color = isComp ? '#E056FD' : (hasMeta ? '#00D2D3' : '#A5B1C2');
-                                                
-                                                // Forecasting UI Elements
-                                                let alertIcon = null;
-                                                let forecastText = "";
-                                                if (hasMeta && !isComp) {
-                                                    if (act.forecastAlert === 'bad') {
-                                                        alertIcon = <Icon name="TrendingDown" size={14} className="text-red-400" />;
-                                                        forecastText = `Proyección fin de año: ${act.projected} ⚠️ Riesgo`;
-                                                    } else if (act.forecastAlert === 'good') {
-                                                        alertIcon = <Icon name="TrendingUp" size={14} className="text-[#00D2D3]" />;
-                                                        forecastText = `Proyección fin de año: ${act.projected} ✨ Óptimo`;
-                                                    } else {
-                                                        alertIcon = <Icon name="Activity" size={14} className="text-yellow-400" />;
-                                                        forecastText = `Proyección fin de año: ${act.projected} - Estable`;
-                                                    }
-                                                }
-
-                                                return (
-                                                    <div key={act.id} className="space-y-2 group">
-                                                        <div className="flex justify-between items-center text-[11px]">
-                                                            <div className="flex flex-col gap-0.5 pr-4">
-                                                                <div className="flex items-center gap-2 text-[#A5B1C2]">
-                                                                    <span style={{ color }}><Icon name={getIconNameForActivity(act.actividad)} size={14} /></span>
-                                                                    <span className="truncate uppercase font-medium">{act.actividad}</span>
-                                                                    {alertIcon}
-                                                                </div>
-                                                                {hasMeta && !isComp && (
-                                                                    <span className="text-[9px] text-[#A5B1C2] opacity-80 pl-6">
-                                                                        {forecastText}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <span className="font-bold" style={{ color }}>{hasMeta ? `${act.avance}%` : `${act.total} Realizados`}</span>
-                                                        </div>
-                                                        <div className="relative h-1.5 bg-[#161B26] rounded-full">
-                                                            <div className="h-full rounded-full transition-all duration-1000 relative" style={{ width: hasMeta ? `${Math.min(Number(act.avance), 100)}%` : '100%', backgroundColor: color, boxShadow: hasMeta ? `0 0 10px ${color}66` : 'none', opacity: hasMeta ? 1 : 0.4 }}>
-                                                                {hasMeta && <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-[#1A202E]" style={{ backgroundColor: color }}></div>}
-                                                            </div>
-                                                            {hasMeta && <div className="absolute left-1/2 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-[#BE2EDD] z-10"></div>}
-                                                            {hasMeta && <div className="absolute left-1/2 -translate-x-1/2 top-4 text-[9px] font-bold text-[#BE2EDD]">{(act.meta/2).toLocaleString('es-CL')}</div>}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="bg-[#1A202E]/90 backdrop-blur-md rounded-2xl border border-[#2A3441] shadow-2xl overflow-hidden">
-                                    <div className="p-4 bg-[#161B26]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#A5B1C2]">
-                                        <div className="flex items-center gap-2">
-                                            <Icon name={dbStatus === 'connected' ? "Activity" : "AlertCircle"} size={14} className={dbStatus === 'connected' ? "text-[#00D2D3]" : "text-red-400"} />
-                                            {dbStatus === 'connected' ? "Conexión estable con Firestore." : "Desconectado. Los datos no se guardarán en la nube."}
-                                        </div>
-                                        
-                                        {/* Indicador Visual de Estado de Guardado en tabla */}
-                                        <div className="flex items-center gap-2 font-bold bg-[#161B26] px-3 py-1.5 rounded-full border border-[#2A3441]">
-                                            {syncStatus === 'unsaved' && <><Icon name="AlertCircle" size={14} className="text-yellow-400" /><span className="text-yellow-400">Cambios locales</span></>}
-                                            {syncStatus === 'syncing' && <><Icon name="RefreshCw" size={14} className="animate-spin text-[#00D2D3]" /><span className="text-[#00D2D3]">Guardando...</span></>}
-                                            {syncStatus === 'synced' && <><Icon name="CheckCircle" size={14} className="text-[#A5B1C2]" /><span className="text-[#A5B1C2]">Todo Sincronizado</span></>}
-                                            {syncStatus === 'error' && <><Icon name="AlertCircle" size={14} className="text-red-400" /><span className="text-red-400">Error</span></>}
-                                        </div>
-                                    </div>
-                                    <div className="overflow-x-auto custom-scrollbar">
-                                        <table className="w-full text-[12px] text-left border-collapse min-w-[1200px]">
-                                            <thead className="bg-[#161B26] text-[#A5B1C2] uppercase font-bold tracking-widest">
-                                                <tr>
-                                                    <th className="px-4 py-4 border-r border-[#2A3441] sticky left-0 bg-[#161B26] z-10 text-white">Actividad</th>
-                                                    <th className="px-1 py-2 border-r border-[#2A3441] text-center min-w-[60px] text-[#BE2EDD]">
-                                                        <div className="flex flex-col items-center justify-center gap-1">
-                                                            <span>META</span>
-                                                            <button 
-                                                                onClick={toggleMetaLock}
-                                                                className={`p-1 rounded transition-colors ${lockedMeta ? 'text-red-400 bg-red-400/10' : 'text-[#A5B1C2] hover:bg-[#2A3441]'}`}
-                                                                title={lockedMeta ? "Desbloquear Meta" : "Bloquear Meta"}
-                                                            >
-                                                                <Icon name={lockedMeta ? "Lock" : "Unlock"} size={12} />
-                                                            </button>
-                                                        </div>
-                                                    </th>
-                                                    <th className="px-3 py-4 border-r border-[#2A3441] text-right text-white">% Avance</th>
-                                                    {MONTHS.map((m, i) => (
-                                                        <th key={m.key} className="px-1 py-2 border-r border-[#2A3441] text-center min-w-[50px] text-white">
-                                                            <div className="flex flex-col items-center justify-center gap-1">
-                                                                <span>{m.label}</span>
-                                                                <button 
-                                                                    onClick={() => toggleMonthLock(i)}
-                                                                    className={`p-1 rounded transition-colors ${lockedMonths[i] ? 'text-red-400 bg-red-400/10' : 'text-[#A5B1C2] hover:bg-[#2A3441]'}`}
-                                                                    title={lockedMonths[i] ? "Desbloquear Mes" : "Bloquear Mes"}
-                                                                >
-                                                                    <Icon name={lockedMonths[i] ? "Lock" : "Unlock"} size={12} />
-                                                                </button>
-                                                            </div>
-                                                        </th>
-                                                    ))}
-                                                    <th className="px-3 py-4 border-r border-[#2A3441] text-right text-white">Total</th>
-                                                    <th className="px-3 py-4 text-right text-white">Pdte.</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {processedData.map((row) => (
-                                                    <tr key={row.id} className="border-b border-[#2A3441] hover:bg-[#202838] transition-colors group/row">
-                                                        <td className="px-4 py-3 font-semibold text-white border-r border-[#2A3441] sticky left-0 bg-[#1A202E] z-10">{row.actividad}</td>
-                                                        
-                                                        {/* Celda Editable de la Meta */}
-                                                        <td className={`p-0 border-r border-[#2A3441] relative transition-colors ${lockedMeta ? 'bg-red-900/10 opacity-70 cursor-not-allowed' : 'group-hover/row:bg-[#161B26]/30'}`}>
-                                                            <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none opacity-20">
-                                                                <Icon name="Target" size={12} className="text-[#BE2EDD]" />
-                                                            </div>
-                                                            <input 
-                                                                type="text" 
-                                                                inputMode="numeric"
-                                                                value={row.meta} 
-                                                                onChange={(e) => handleMetaEdit(row.id, e.target.value)} 
-                                                                className={`w-full h-11 bg-transparent text-right pr-6 focus:bg-[#161B26] outline-none text-[#BE2EDD] font-bold font-mono transition-colors ${lockedMeta ? 'cursor-not-allowed' : ''}`} 
-                                                                disabled={lockedMeta || (dbStatus === 'error' && !hasChanges)}
-                                                                title={lockedMeta ? "Meta bloqueada" : ""}
-                                                            />
-                                                        </td>
-                                                        
-                                                        <td className="px-3 py-3 text-right border-r border-[#2A3441] font-bold font-mono" style={{ color: Number(row.avance) >= 100 ? '#E056FD' : '#00D2D3' }}>{row.avance}%</td>
-                                                        {row.months.map((val, i) => (
-                                                            <td key={i} className={`p-0 border-r border-[#2A3441] transition-colors ${lockedMonths[i] ? 'bg-red-900/10 opacity-70 cursor-not-allowed' : ''}`}>
-                                                                <input 
-                                                                    type="text" 
-                                                                    inputMode="numeric"
-                                                                    value={val} 
-                                                                    onChange={(e) => handleMonthEdit(row.id, i, e.target.value)} 
-                                                                    placeholder="-" 
-                                                                    className={`w-full h-10 bg-transparent text-center focus:bg-[#161B26] outline-none text-white placeholder-[#2A3441] transition-colors ${lockedMonths[i] ? 'cursor-not-allowed' : ''}`} 
-                                                                    disabled={lockedMonths[i] || (dbStatus === 'error' && !hasChanges)} 
-                                                                    title={lockedMonths[i] ? "Mes bloqueado" : ""}
-                                                                />
-                                                            </td>
-                                                        ))}
-                                                        <td className="px-3 py-3 text-right border-r border-[#2A3441] font-bold bg-[#161B26]/30 font-mono text-white">{row.total}</td>
-                                                        <td className="px-3 py-3 text-right font-bold text-[#A5B1C2] bg-[#161B26]/30 font-mono">{row.pendiente}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                {/* Firma Original */}
-                                <div className="flex items-center gap-4 mt-12 pb-8 border-t border-[#2A3441]/50 pt-6">
-                                    <div className="w-16 h-16 rounded-full border-2 border-[#00D2D3] shadow-lg flex items-center justify-center bg-[#1A202E] overflow-hidden relative shrink-0">
-                                        <img 
-                                            src="Logo con el sononauta .jpg" 
-                                            alt="Logo" 
-                                            className="w-full h-full object-cover z-10" 
-                                            onError={(e) => { e.target.style.display = 'none'; }} 
-                                        />
-                                        <Icon name="Activity" className="text-[#00D2D3] absolute opacity-50 z-0" />
-                                    </div>
-                                    <div className="text-[11px] text-[#A5B1C2] leading-relaxed font-medium">
-                                        <p className="text-[#00D2D3] font-bold text-[14px]">Camilo Torres Arismendi.</p>
-                                        <p>Tecnólogo Médico. | Encargado de Imagenología. | Cesfam Dalcahue.</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Widget de QR */}
-                            {showQR && (
-                                <div className="absolute bottom-6 right-6 bg-[#1A202E] border border-[#2A3441] p-3 rounded-2xl shadow-lg flex flex-col items-center gap-2 z-10 group hover:border-[#00D2D3]/50 transition-all">
-                                    <button 
-                                        onClick={() => setShowQR(false)} 
-                                        className="absolute -top-3 -right-3 bg-[#161B26] border border-[#2A3441] rounded-full p-1 text-[#A5B1C2] hover:text-white hover:bg-red-500 hover:border-red-500 transition-all z-10 shadow-md"
-                                        title="Ocultar QR"
-                                    >
-                                        <Icon name="X" size={14} />
-                                    </button>
-                                    <div className="bg-white p-2 rounded-xl shadow-inner min-w-[80px] min-h-[80px] flex items-center justify-center">
-                                        <img 
-                                            src={`https://quickchart.io/qr?text=${encodeURIComponent('https://camibyte.github.io/App-Control-de-programas-ID-y-Resolutividad/')}&dark=161B26&size=100&margin=1`} 
-                                            alt="Código QR para Móvil" 
-                                            className="w-[80px] h-[80px] object-contain" 
-                                            onError={(e) => { e.target.style.display = 'none'; }}
-                                        />
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-[#00D2D3]">
-                                        <Icon name="Smartphone" size={14} />
-                                        <p className="text-[9px] font-bold uppercase tracking-widest text-center mt-0.5">Móvil</p>
-                                    </div>
-                                </div>
-                            )}
-
-                        </div>
-                    </>
-                );
+        function renderChart(monthlyTotals) {
+            const max = Math.max(...monthlyTotals, 0);
+            const niceMax = max === 0 ? 10 : Math.ceil(max / 10) * 10;
+            
+            const yAxis = document.getElementById('chart-y-axis');
+            yAxis.innerHTML = '';
+            for (let i = 5; i >= 0; i--) {
+                const span = document.createElement('span');
+                span.textContent = Math.round((niceMax / 5) * i);
+                yAxis.appendChild(span);
             }
 
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(<App />);
-        })();
+            const container = document.getElementById('chart-bars-container');
+            container.innerHTML = '';
+            monthlyTotals.forEach((total, idx) => {
+                const pct = niceMax > 0 ? (total / niceMax) * 100 : 0;
+                const wrapper = document.createElement('div');
+                wrapper.className = "flex-1 flex flex-col items-center h-full justify-end px-1 relative group";
+                wrapper.innerHTML = `
+                    <div class="w-full max-w-[24px] bg-[#00D2D3] rounded-t-sm shadow-[0_0_10px_#00D2D344] group-hover:bg-[#22F6F7] transition-all" style="height: ${pct}%" title="Total: ${total}"></div>
+                    <span class="absolute -bottom-6 text-[9px] font-bold uppercase text-[#A5B1C2]">${MONTHS[idx].key}</span>
+                `;
+                container.appendChild(wrapper);
+            });
+        }
+
+        function renderForecasts(processed) {
+            const list = document.getElementById('forecast-list');
+            list.innerHTML = '';
+            processed.forEach(act => {
+                const isComp = act.meta > 0 && Number(act.avance) >= 100;
+                const color = isComp ? '#E056FD' : (act.meta > 0 ? '#00D2D3' : '#A5B1C2');
+                let forecastText = `Estable — Fin de año: ${act.projected}`;
+                if (act.meta > 0 && !isComp) {
+                    if (act.forecastAlert === 'bad') forecastText = `⚠️ Riesgo de incumplimiento — Proyección: ${act.projected}`;
+                    if (act.forecastAlert === 'good') forecastText = `✨ Ritmo óptimo de ejecución — Proyección: ${act.projected}`;
+                }
+
+                const item = document.createElement('div');
+                item.className = "space-y-2";
+                item.innerHTML = `
+                    <div class="flex justify-between items-center text-[11px]">
+                        <div class="flex flex-col">
+                            <span class="uppercase font-bold text-white">${act.actividad}</span>
+                            <span class="text-[9px] text-[#A5B1C2] opacity-80">${act.meta > 0 ? forecastText : 'Sin meta anual fijada'}</span>
+                        </div>
+                        <span class="font-bold font-mono" style="color: ${color}">${act.meta > 0 ? act.avance + '%' : act.total + ' Realizados'}</span>
+                    </div>
+                    <div class="w-full h-1.5 bg-[#161B26] rounded-full overflow-hidden">
+                        <div class="h-full rounded-full transition-all" style="width: ${act.meta > 0 ? Math.min(Number(act.avance), 100) : 100}%; background-color: ${color}"></div>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function renderTable(processed) {
+            tableBody.innerHTML = '';
+            processed.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-[#2A3441] hover:bg-[#202838] transition-colors";
+                
+                // Nombre Actividad
+                const tdName = document.createElement('td');
+                tdName.className = "px-4 py-3 font-semibold text-white border-r border-[#2A3441] sticky left-0 bg-[#1A202E] z-10";
+                tdName.textContent = row.actividad;
+                tr.appendChild(tdName);
+
+                // Input Meta
+                const tdMeta = document.createElement('td');
+                tdMeta.className = "p-0 border-r border-[#2A3441]";
+                tdMeta.innerHTML = `<input type="text" inputmode="numeric" value="${row.meta}" class="w-full h-11 bg-transparent text-right pr-4 outline-none text-[#BE2EDD] font-bold font-mono focus:bg-[#161B26]">`;
+                const inputMeta = tdMeta.querySelector('input');
+                inputMeta.addEventListener('change', (e) => {
+                    const val = e.target.value;
+                    row.meta = val === '' ? 0 : (parseInt(val) || 0);
+                    state.hasChanges = true;
+                    // Sincronizar con el estado global de actividades
+                    const idx = state.activities.findIndex(a => a.id === row.id);
+                    state.activities[idx].meta = row.meta;
+                    renderDashboard();
+                });
+                tr.appendChild(tdMeta);
+
+                // Celda de Porcentaje de avance
+                const tdPct = document.createElement('td');
+                tdPct.className = "px-3 py-3 text-right border-r border-[#2A3441] font-bold font-mono";
+                tdPct.style.color = Number(row.avance) >= 100 ? '#E056FD' : '#00D2D3';
+                tdPct.textContent = `${row.avance}%`;
+                tr.appendChild(tdPct);
+
+                // Inputs de Meses
+                row.months.forEach((val, mIdx) => {
+                    const tdMonth = document.createElement('td');
+                    tdMonth.className = "p-0 border-r border-[#2A3441]";
+                    tdMonth.innerHTML = `<input type="text" inputmode="numeric" value="${val}" placeholder="-" class="w-full h-10 bg-transparent text-center outline-none text-white font-mono focus:bg-[#161B26]">`;
+                    const inputMonth = tdMonth.querySelector('input');
+                    inputMonth.addEventListener('change', (e) => {
+                        const inputVal = e.target.value;
+                        if (inputVal === '' || /^\d+$/.test(inputVal)) {
+                            const actIdx = state.activities.findIndex(a => a.id === row.id);
+                            state.activities[actIdx].months[mIdx] = inputVal;
+                            state.hasChanges = true;
+                            renderDashboard();
+                        }
+                    });
+                    tr.appendChild(tdMonth);
+                });
+
+                // Celdas Finales: Total Realizado y Pendientes
+                const tdTotal = document.createElement('td');
+                tdTotal.className = "px-3 py-3 text-right border-r border-[#2A3441] font-bold bg-[#161B26]/30 font-mono text-white";
+                tdTotal.textContent = row.total;
+                tr.appendChild(tdTotal);
+
+                const tdPdte = document.createElement('td');
+                tdPdte.className = "px-3 py-3 text-right font-bold text-[#A5B1C2] bg-[#161B26]/30 font-mono";
+                tdPdte.textContent = row.pendiente;
+                tr.appendChild(tdPdte);
+
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // --- MANEJO DE PERSISTENCIA ---
+        function saveToFirestore() {
+            syncStatusBadge.innerHTML = "<span class='text-[#00D2D3]'>Sincronizando datos con Firestore...</span>";
+            const collectionName = `activities_${state.selectedYear}`;
+            const activitiesRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(collectionName);
+            const batch = db.batch();
+
+            state.activities.forEach(act => {
+                const docRef = activitiesRef.doc(act.id.toString());
+                batch.set(docRef, act);
+            });
+
+            // Registrar log de auditoría clínico
+            const logRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection(`logs_${state.selectedYear}`).doc();
+            batch.set(logRef, {
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                user: 'Usuario de Gestión Clínico',
+                action: 'Actualización masiva de resolutividad',
+                service: state.selectedService
+            });
+
+            batch.commit().then(() => {
+                state.hasChanges = false;
+                renderDashboard();
+            }).catch(err => {
+                console.error("Error guardando:", err);
+                alert("Error al sincronizar datos. Verifique sus Reglas de Firestore.");
+                renderDashboard();
+            });
+        }
+
+        // --- REPORTES Y EXPORTACIÓN ---
+        document.getElementById('btn-excel').addEventListener('click', () => {
+            const reportData = state.activities.map(r => {
+                const total = r.months.reduce((sum, v) => sum + (Number(v) || 0), 0);
+                const row = { 'ID': r.id, 'Actividad': r.actividad, 'Meta Anual': r.meta, '% Avance': (r.meta > 0 ? ((total/r.meta)*100).toFixed(2) : "0.00") + '%' };
+                MONTHS.forEach((m, i) => row[m.label] = r.months[i] || 0);
+                row['Total Realizado'] = total;
+                row['Pendiente'] = r.meta > 0 ? Math.max(0, r.meta - total) : 0;
+                return row;
+            });
+            const ws = XLSX.utils.json_to_sheet(reportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Reporte_CESFAM");
+            XLSX.writeFile(wb, `Reporte_Resolutividad_CESFAM_${state.selectedYear}.xlsx`);
+        });
+
+        document.getElementById('btn-pdf').addEventListener('click', () => {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('landscape');
+            doc.setFontSize(18);
+            doc.text(`Reporte de Metas y Resolutividad CESFAM - Año ${state.selectedYear}`, 14, 20);
+            doc.setFontSize(11);
+            doc.text(`Generado el: ${new Date().toLocaleDateString()}`, 14, 28);
+
+            const tableColumn = ["Actividad", "Meta", "Avance", ...MONTHS.map(m=>m.label), "Total", "Pdte"];
+            const tableRows = state.activities.map(r => {
+                const total = r.months.reduce((sum, v) => sum + (Number(v) || 0), 0);
+                const avance = r.meta > 0 ? ((total / r.meta) * 100).toFixed(2) : "0.00";
+                const pendiente = r.meta > 0 ? Math.max(0, r.meta - total) : 0;
+                return [ r.actividad, r.meta, avance + '%', ...r.months.map(m => m || '-'), total, pendiente ];
+            });
+
+            doc.autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: 35,
+                styles: { fontSize: 8, cellPadding: 2 },
+                headStyles: { fillColor: [0, 210, 211], textColor: [22, 27, 38] },
+                alternateRowStyles: { fillColor: [240, 240, 240] }
+            });
+            doc.save(`Reporte_Resolutividad_CESFAM_${state.selectedYear}.pdf`);
+        });
+
+        // Lanzamiento inicial
+        attachFirestoreListener();
     </script>
 </body>
 </html>
